@@ -10,10 +10,10 @@
     },
     {
       "id": "store_2", 
-      "name": "Branch Store",
+      "name": "Raj Store",
       "api_endpoint": "https://api.allorigins.win/raw?url=http://35.227.145.87:8081/api",
       "description": "Secondary facial registration store",
-      "location": "Branch Office",
+      "location": "Pump Store",
       "status": "inactive"
     },
     {
