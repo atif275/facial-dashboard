@@ -1,0 +1,32 @@
+{
+  "stores": [
+    {
+      "id": "store_1",
+      "name": "AI HOUSE",
+      "api_endpoint": "http://35.227.145.87:8080/api",
+      "description": "Primary facial registration store",
+      "location": "Main Office",
+      "status": "active"
+    },
+    {
+      "id": "store_2", 
+      "name": "Branch Store",
+      "api_endpoint": "http://35.227.145.87:8081/api",
+      "description": "Secondary facial registration store",
+      "location": "Branch Office",
+      "status": "inactive"
+    },
+    {
+      "id": "store_3",
+      "name": "Test Store",
+      "api_endpoint": "http://35.227.145.87:8082/api",
+      "description": "Testing and development store",
+      "location": "Development Lab",
+      "status": "inactive"
+    }
+  ],
+  "default_store": "store_1",
+  "connection_timeout": 5000,
+  "retry_attempts": 3,
+  "health_check_interval": 30000
+}
