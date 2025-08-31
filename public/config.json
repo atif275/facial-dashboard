@@ -3,10 +3,10 @@
     {
       "id": "store_1",
       "name": "AI HOUSE",
-      "api_endpoint": "https://api.allorigins.win/raw?url=http://35.227.145.87:8080/api",
+      "api_endpoint": "http://35.227.145.87:8080/api",
       "description": "Primary facial registration store",
       "location": "Main Office",
-      "status": "active"
+      "status": "inactive"
     },
     {
       "id": "store_2", 
@@ -14,7 +14,7 @@
       "api_endpoint": "https://api.allorigins.win/raw?url=http://35.227.145.87:8081/api",
       "description": "Secondary facial registration store",
       "location": "Pump Store",
-      "status": "inactive"
+      "status": "active"
     },
     {
       "id": "store_3",

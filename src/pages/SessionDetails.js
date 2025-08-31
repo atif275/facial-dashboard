@@ -1,46 +1,67 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
+import { getTimeAgo } from '../utils/timeUtils';
 
 const SessionDetails = () => {
   const { sessionName } = useParams();
   const { getSessionDetails } = useStore();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showRawSession, setShowRawSession] = useState(false);
+  const [showFaceFeatures, setShowFaceFeatures] = useState(false);
 
   useEffect(() => {
-    if (sessionName) {
-      loadSessionDetails();
-    }
+    loadSessionDetails();
   }, [sessionName]);
 
   const loadSessionDetails = async () => {
     try {
       setLoading(true);
-      const response = await getSessionDetails(decodeURIComponent(sessionName));
-      console.log('Session details response:', response);
+      const response = await getSessionDetails(sessionName);
       setSession(response.session);
     } catch (error) {
       console.error('Error loading session details:', error);
+      setSession(null);
     } finally {
       setLoading(false);
     }
   };
 
   const formatDuration = (timestamp) => {
-    if (!timestamp) return 'Unknown';
+    return getTimeAgo(timestamp);
+  };
+
+  // Custom JSON renderer that makes face_features collapsible
+  const renderCollapsibleJSON = (obj, indent = 0) => {
+    const spaces = '  '.repeat(indent);
+    const lines = [];
     
-    const now = new Date();
-    const sessionTime = new Date(timestamp);
-    const diffMs = now - sessionTime;
-    const diffMins = Math.floor(diffMs / 60000);
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === 'face_features' && Array.isArray(value)) {
+        lines.push(`${spaces}"${key}": [`);
+        if (showFaceFeatures) {
+          if (value.length > 0) {
+            lines.push(`${spaces}  // ${value.length} face features`);
+            lines.push(`${spaces}  ...${value.length} items`);
+          } else {
+            lines.push(`${spaces}  // Empty array`);
+          }
+        } else {
+          lines.push(`${spaces}  // ${value.length} face features (click to expand)`);
+        }
+        lines.push(`${spaces}]`);
+      } else if (typeof value === 'object' && value !== null) {
+        lines.push(`${spaces}"${key}": {`);
+        lines.push(...renderCollapsibleJSON(value, indent + 1));
+        lines.push(`${spaces}}`);
+      } else {
+        const jsonValue = typeof value === 'string' ? `"${value}"` : value;
+        lines.push(`${spaces}"${key}": ${jsonValue}`);
+      }
+    }
     
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+    return lines;
   };
 
   if (loading) {
@@ -281,6 +302,43 @@ const SessionDetails = () => {
           </div>
         </div>
       )}
+
+      {/* Raw Session Data */}
+      <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-100">Raw Session Data</h3>
+          <button
+            onClick={() => setShowRawSession(!showRawSession)}
+            className="flex items-center gap-2 px-3 py-1 bg-gray-800/40 border border-gray-700/30 rounded-lg hover:bg-gray-800/60 transition-colors text-sm"
+          >
+            <span className="text-gray-300">{showRawSession ? 'Hide' : 'Show'} Raw Data</span>
+            <span className="text-gray-400">{showRawSession ? '▼' : '▶'}</span>
+          </button>
+        </div>
+        
+        {showRawSession && session && (
+          <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+            <pre className="text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap">
+              {renderCollapsibleJSON(session).map((line, index) => {
+                if (line.includes('face_features (click to expand)')) {
+                  return (
+                    <div key={index} className="flex items-center">
+                      <span className="text-gray-300">{line.replace('(click to expand)', '')}</span>
+                      <button
+                        onClick={() => setShowFaceFeatures(!showFaceFeatures)}
+                        className="ml-2 px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-xs text-blue-300 hover:bg-blue-500/30 transition-colors"
+                      >
+                        {showFaceFeatures ? 'Collapse' : 'Expand'}
+                      </button>
+                    </div>
+                  );
+                }
+                return <div key={index} className="text-gray-300">{line}</div>;
+              })}
+            </pre>
+          </div>
+        )}
+      </div>
 
       {/* Face Features Summary */}
       {session.face_features && session.face_features.length > 0 && (

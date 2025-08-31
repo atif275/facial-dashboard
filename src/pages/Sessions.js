@@ -1,32 +1,34 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
+import { Link } from 'react-router-dom';
+import { getTimeAgo } from '../utils/timeUtils';
 
 const Sessions = () => {
   const { getSessions } = useStore();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     loadSessions();
-  }, [currentPage]);
+  }, []);
 
-  const loadSessions = async () => {
+  const loadSessions = async (loadMore = false) => {
     try {
       setLoading(true);
-      const response = await getSessions(20, currentPage * 20);
-      const newSessions = response.sessions || [];
+      const currentOffset = loadMore ? offset : 0;
+      const response = await getSessions(20, currentOffset);
       
-      if (currentPage === 0) {
-        setSessions(newSessions);
+      if (loadMore) {
+        setSessions(prev => [...prev, ...(response.sessions || [])]);
       } else {
-        setSessions(prev => [...prev, ...newSessions]);
+        setSessions(response.sessions || []);
       }
       
-      setHasMore(newSessions.length === 20);
+      setOffset(currentOffset + 20);
+      setHasMore(response.pagination?.has_more || false);
     } catch (error) {
       console.error('Error loading sessions:', error);
     } finally {
@@ -35,19 +37,7 @@ const Sessions = () => {
   };
 
   const formatDuration = (timestamp) => {
-    if (!timestamp) return 'Unknown';
-    
-    const now = new Date();
-    const sessionTime = new Date(timestamp);
-    const diffMs = now - sessionTime;
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+    return getTimeAgo(timestamp);
   };
 
   const filteredSessions = sessions.filter(session =>
@@ -56,7 +46,7 @@ const Sessions = () => {
 
   const loadMore = () => {
     if (!loading && hasMore) {
-      setCurrentPage(prev => prev + 1);
+      loadSessions(true);
     }
   };
 

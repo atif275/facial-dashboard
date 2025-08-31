@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
+import { Link } from 'react-router-dom';
+import { getTimeAgo } from '../utils/timeUtils';
 
 const LiveSessions = () => {
   const { getSessions } = useStore();
@@ -13,7 +14,7 @@ const LiveSessions = () => {
 
   const loadSessions = async () => {
     try {
-      const response = await getSessions(5, 0); // Get latest 5 sessions
+      const response = await getSessions(5, 0);
       setSessions(response.sessions || []);
     } catch (error) {
       console.error('Error loading sessions:', error);
@@ -24,19 +25,7 @@ const LiveSessions = () => {
   };
 
   const formatDuration = (timestamp) => {
-    if (!timestamp) return 'Unknown';
-    
-    const now = new Date();
-    const sessionTime = new Date(timestamp);
-    const diffMs = now - sessionTime;
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+    return getTimeAgo(timestamp);
   };
 
   if (loading) {

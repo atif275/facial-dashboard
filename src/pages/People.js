@@ -1,63 +1,52 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
+import { Link } from 'react-router-dom';
+import { getTimeAgo } from '../utils/timeUtils';
 
 const People = () => {
   const { getPeople } = useStore();
-  const [people, setPeople] = useState([]);
+  const [persons, setPersons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
-    loadPeople();
-  }, [currentPage]);
+    loadPersons();
+  }, []);
 
-  const loadPeople = async () => {
+  const loadPersons = async (loadMore = false) => {
     try {
       setLoading(true);
-      const response = await getPeople(20, currentPage * 20);
-      console.log('People API Response:', response); // Added console log
-      const newPeople = response.persons || [];
+      const currentOffset = loadMore ? offset : 0;
+      const response = await getPeople(20, currentOffset);
       
-      if (currentPage === 0) {
-        setPeople(newPeople);
+      if (loadMore) {
+        setPersons(prev => [...prev, ...(response.persons || [])]);
       } else {
-        setPeople(prev => [...prev, ...newPeople]);
+        setPersons(response.persons || []);
       }
       
-      setHasMore(newPeople.length === 20);
+      setOffset(currentOffset + 20);
+      setHasMore(response.pagination?.has_more || false);
     } catch (error) {
-      console.error('Error loading people:', error);
+      console.error('Error loading persons:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const formatLastSeen = (timestamp) => {
-    if (!timestamp) return 'Unknown';
-    
-    const now = new Date();
-    const lastSeen = new Date(timestamp);
-    const diffMs = now - lastSeen;
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+    return getTimeAgo(timestamp);
   };
 
-  const filteredPeople = people.filter(person =>
+  const filteredPersons = persons.filter(person =>
     person.person_id?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const loadMore = () => {
     if (!loading && hasMore) {
-      setCurrentPage(prev => prev + 1);
+      loadPersons(true);
     }
   };
 
@@ -85,7 +74,7 @@ const People = () => {
 
       {/* People Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredPeople.map((person, index) => (
+        {filteredPersons.map((person, index) => (
           <Link
             key={index}
             to={`/people/${encodeURIComponent(person.person_id)}`}
@@ -169,7 +158,7 @@ const People = () => {
       )}
 
       {/* Empty State */}
-      {!loading && filteredPeople.length === 0 && (
+      {!loading && filteredPersons.length === 0 && (
         <div className="text-center py-12">
           <span className="text-6xl text-gray-600 mb-4 block opacity-50">👤</span>
           <h3 className="text-xl font-semibold text-gray-100 mb-2">No people found</h3>

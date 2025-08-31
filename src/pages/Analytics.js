@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { formatDate } from '../utils/timeUtils';
 
 const Analytics = () => {
   const { getDailyMetrics, getQualityMetrics, getSystemStats, getBusinessAnalytics } = useStore();
@@ -60,6 +61,35 @@ const Analytics = () => {
       unknown: dayRecords.filter(record => record.gender === -1).length
     };
 
+    // Age group distribution
+    const ageGroups = {
+      'Babies (0-2)': 0,
+      'Children (3-16)': 0,
+      'Young Adults (17-30)': 0,
+      'Middle-aged Adults (31-45)': 0,
+      'Old Adults (Above 45)': 0,
+      'Unknown': 0
+    };
+
+    dayRecords.forEach(record => {
+      const age = record.age;
+      if (!age || age < 0) {
+        ageGroups['Unknown']++;
+      } else if (age >= 0 && age <= 2) {
+        ageGroups['Babies (0-2)']++;
+      } else if (age >= 3 && age <= 16) {
+        ageGroups['Children (3-16)']++;
+      } else if (age >= 17 && age <= 30) {
+        ageGroups['Young Adults (17-30)']++;
+      } else if (age >= 31 && age <= 45) {
+        ageGroups['Middle-aged Adults (31-45)']++;
+      } else if (age > 45) {
+        ageGroups['Old Adults (Above 45)']++;
+      } else {
+        ageGroups['Unknown']++;
+      }
+    });
+
     return {
       date,
       uniqueCustomers: uniqueCustomers.size,
@@ -67,6 +97,7 @@ const Analytics = () => {
       repeatCustomers,
       frequentVisitors,
       genderDistribution,
+      ageGroups,
       customerDetails: dayRecords
     };
   };
@@ -140,7 +171,7 @@ const Analytics = () => {
     return (
       <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
         <h3 className="text-lg font-semibold text-gray-100 mb-4">
-          Business Analytics - {new Date(selectedDate).toLocaleDateString()}
+          Business Analytics - {formatDate(selectedDate)}
         </h3>
         
         {/* Key Metrics */}
@@ -178,6 +209,37 @@ const Analytics = () => {
             <div className="flex items-center justify-between">
               <span className="text-gray-300">Unknown</span>
               <span className="text-gray-100 font-medium">{analytics.genderDistribution.unknown} customers</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Age Group Distribution */}
+        <div className="mb-6">
+          <h4 className="text-md font-semibold text-gray-100 mb-3">👴 Age Group Distribution</h4>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300">Babies (0-2)</span>
+              <span className="text-gray-100 font-medium">{analytics.ageGroups['Babies (0-2)']} customers</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300">Children (3-16)</span>
+              <span className="text-gray-100 font-medium">{analytics.ageGroups['Children (3-16)']} customers</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300">Young Adults (17-30)</span>
+              <span className="text-gray-100 font-medium">{analytics.ageGroups['Young Adults (17-30)']} customers</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300">Middle-aged Adults (31-45)</span>
+              <span className="text-gray-100 font-medium">{analytics.ageGroups['Middle-aged Adults (31-45)']} customers</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300">Old Adults (Above 45)</span>
+              <span className="text-gray-100 font-medium">{analytics.ageGroups['Old Adults (Above 45)']} customers</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300">Unknown</span>
+              <span className="text-gray-100 font-medium">{analytics.ageGroups['Unknown']} customers</span>
             </div>
           </div>
         </div>

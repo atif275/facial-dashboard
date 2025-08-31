@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
+import { Link } from 'react-router-dom';
+import { getTimeAgo } from '../utils/timeUtils';
 
 const RecentVisitors = () => {
   const { getPeople } = useStore();
@@ -13,7 +14,7 @@ const RecentVisitors = () => {
 
   const loadVisitors = async () => {
     try {
-      const response = await getPeople(5, 0); // Get latest 5 visitors
+      const response = await getPeople(5, 0);
       setVisitors(response.persons || []);
     } catch (error) {
       console.error('Error loading visitors:', error);
@@ -24,19 +25,7 @@ const RecentVisitors = () => {
   };
 
   const formatLastSeen = (timestamp) => {
-    if (!timestamp) return 'Unknown';
-    
-    const now = new Date();
-    const lastSeen = new Date(timestamp);
-    const diffMs = now - lastSeen;
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+    return getTimeAgo(timestamp);
   };
 
   if (loading) {

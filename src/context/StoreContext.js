@@ -36,13 +36,19 @@ export const StoreProvider = ({ children }) => {
 
   const loadConfig = async () => {
     try {
+      console.log('Loading configuration...');
       const response = await fetch('/config.json');
+      if (!response.ok) {
+        throw new Error(`Failed to load config: ${response.status}`);
+      }
       const config = await response.json();
+      console.log('Config loaded:', config);
       setStores(config.stores);
       
       // Set default store (only active stores)
       const activeStores = config.stores.filter(store => store.status === 'active');
       const defaultStore = activeStores.find(store => store.id === config.default_store) || activeStores[0];
+      console.log('Default store set:', defaultStore);
       setCurrentStore(defaultStore);
       
       // Initial health check
@@ -156,6 +162,7 @@ export const StoreProvider = ({ children }) => {
   const getBusinessAnalytics = async () => {
     try {
       const response = await makeApiCall('/business_analytics');
+      console.log('Business analytics:', response);
       return response;
     } catch (error) {
       console.error('Error fetching business analytics:', error);

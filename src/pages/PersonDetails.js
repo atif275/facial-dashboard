@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
+import { getTimeAgo, formatTimestamp, calculateDuration } from '../utils/timeUtils';
 
 const PersonDetails = () => {
   const { personId } = useParams();
@@ -9,38 +10,24 @@ const PersonDetails = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (personId) {
-      loadPersonDetails();
-    }
+    loadPersonDetails();
   }, [personId]);
 
   const loadPersonDetails = async () => {
     try {
       setLoading(true);
-      const response = await getPersonDetails(decodeURIComponent(personId));
-      console.log('Person details response:', response); // Debug log
-      setPerson(response.person); // Changed from response.person_details to response.person
+      const response = await getPersonDetails(personId);
+      setPerson(response.person);
     } catch (error) {
       console.error('Error loading person details:', error);
+      setPerson(null);
     } finally {
       setLoading(false);
     }
   };
 
   const formatLastSeen = (timestamp) => {
-    if (!timestamp) return 'Unknown';
-    
-    const now = new Date();
-    const lastSeen = new Date(timestamp);
-    const diffMs = now - lastSeen;
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+    return getTimeAgo(timestamp);
   };
 
   if (loading) {
@@ -164,13 +151,13 @@ const PersonDetails = () => {
             <div className="flex items-center justify-between">
               <span className="text-gray-300">First Seen</span>
               <span className="text-gray-100 font-medium">
-                {person.first_seen ? new Date(person.first_seen).toLocaleString() : 'Unknown'}
+                {person.first_seen ? formatTimestamp(person.first_seen) : 'Unknown'}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-300">Last Seen</span>
               <span className="text-gray-100 font-medium">
-                {person.last_seen ? new Date(person.last_seen).toLocaleString() : 'Unknown'}
+                {person.last_seen ? formatTimestamp(person.last_seen) : 'Unknown'}
               </span>
             </div>
             <div className="flex items-center justify-between">

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../context/StoreContext';
+import { Link } from 'react-router-dom';
+import { formatTimestamp } from '../utils/timeUtils';
 
 const Search = () => {
   const { searchData } = useStore();
@@ -16,7 +18,7 @@ const Search = () => {
       const response = await searchData(searchTerm, searchType);
       setResults(response.results || []);
     } catch (error) {
-      console.error('Error searching:', error);
+      console.error('Search error:', error);
       setResults([]);
     } finally {
       setLoading(false);
@@ -27,11 +29,6 @@ const Search = () => {
     if (e.key === 'Enter') {
       handleSearch();
     }
-  };
-
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return 'Unknown';
-    return new Date(timestamp).toLocaleString();
   };
 
   return (

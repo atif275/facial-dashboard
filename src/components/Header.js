@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
+import { getTimezoneOffset } from '../utils/timeUtils';
 
 const Header = ({ onMenuClick }) => {
   const { currentStore, stores, switchStore, connectionStatus } = useStore();
@@ -47,6 +48,15 @@ const Header = ({ onMenuClick }) => {
         return '●';
       default:
         return '●';
+    }
+  };
+
+  // Get timezone name
+  const getTimezoneName = () => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (error) {
+      return 'Local';
     }
   };
 
@@ -104,10 +114,17 @@ const Header = ({ onMenuClick }) => {
             </div>
           </div>
 
-          {/* Current Time */}
-          <div className="flex items-center gap-2 text-sm text-gray-400">
+          {/* Time Display */}
+          <div className="flex items-center gap-2 text-sm">
             <span className="opacity-60">🕐</span>
-            <span>{currentTime.toLocaleTimeString()}</span>
+            <div className="text-center">
+              <div className="text-gray-400">
+                {currentTime.toLocaleTimeString()} ({getTimezoneName()})
+              </div>
+              <div className="text-gray-400">
+                {currentTime.toISOString().substr(11, 8)} (UTC)
+              </div>
+            </div>
           </div>
         </div>
       </div>
