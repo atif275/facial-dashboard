@@ -11,7 +11,7 @@
     {
       "id": "store_2", 
       "name": "Raj Store",
-      "api_endpoint": "https://35.227.145.87:8081/api",
+      "api_endpoint": "https://35.227.145.87.nip.io/api",
       "description": "Secondary facial registration store",
       "location": "Pump Store",
       "status": "active"
