@@ -3,7 +3,7 @@
     {
       "id": "store_1",
       "name": "AI HOUSE",
-      "api_endpoint": "https://35.227.145.87.nip.io/api",
+      "api_endpoint": "https://rajstoretest.35.227.145.87.nip.io/api",
       "description": "Primary facial registration store",
       "location": "Main Office",
       "status": "active"
@@ -11,7 +11,7 @@
     {
       "id": "store_2", 
       "name": "Raj Store",
-      "api_endpoint": "https://35.227.145.87.nip.io/api",
+      "api_endpoint": "https://rajstoretest.35.227.145.87.nip.io/api",
       "description": "Secondary facial registration store",
       "location": "Pump Store",
       "status": "active"
@@ -19,7 +19,7 @@
     {
       "id": "store_3",
       "name": "Raj Store test",
-      "api_endpoint": "https://35.227.145.87.nip.io/api",
+      "api_endpoint": "https://rajstoretest.35.227.145.87.nip.io/api",
       "description": "Testing and development store",
       "location": "Testing Lab",
       "status": "active"
