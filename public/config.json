@@ -6,12 +6,12 @@
       "api_endpoint": "https://rajstoretest.35.227.145.87.nip.io/api",
       "description": "Primary facial registration store",
       "location": "Main Office",
-      "status": "active"
+      "status": "inactive"
     },
     {
       "id": "store_2", 
       "name": "Raj Store",
-      "api_endpoint": "https://rajstoretest.35.227.145.87.nip.io/api",
+      "api_endpoint": "https://rajstoremain.35.227.145.87.nip.io/api",
       "description": "Secondary facial registration store",
       "location": "Pump Store",
       "status": "active"
