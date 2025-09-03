@@ -11,6 +11,8 @@ const Analytics = () => {
   const [businessAnalytics, setBusinessAnalytics] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     loadAnalyticsData();
@@ -105,9 +107,6 @@ const Analytics = () => {
   // Calendar component
   const Calendar = () => {
     const availableDates = getAvailableDates();
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
     
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
@@ -123,9 +122,76 @@ const Analytics = () => {
       calendarDays.push({ day, date: dateString, hasData });
     }
 
+    const goToPreviousMonth = () => {
+      if (currentMonth === 0) {
+        setCurrentMonth(11);
+        setCurrentYear(currentYear - 1);
+      } else {
+        setCurrentMonth(currentMonth - 1);
+      }
+    };
+
+    const goToNextMonth = () => {
+      const now = new Date();
+      const nextMonth = currentMonth + 1;
+      const nextYear = currentYear;
+      
+      // Don't allow going to future months
+      if (nextYear > now.getFullYear() || (nextYear === now.getFullYear() && nextMonth > now.getMonth())) {
+        return;
+      }
+      
+      if (nextMonth > 11) {
+        setCurrentMonth(0);
+        setCurrentYear(currentYear + 1);
+      } else {
+        setCurrentMonth(nextMonth);
+      }
+    };
+
+    const goToCurrentMonth = () => {
+      const now = new Date();
+      setCurrentMonth(now.getMonth());
+      setCurrentYear(now.getFullYear());
+    };
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
     return (
       <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-100 mb-4">Business Analytics Calendar</h3>
+        {/* Calendar Header with Navigation */}
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-100">Business Analytics Calendar</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={goToPreviousMonth}
+              className="p-2 rounded-lg bg-gray-800/40 border border-gray-700/30 hover:bg-gray-800/60 transition-colors"
+            >
+              <span className="text-gray-300">◀</span>
+            </button>
+            <div className="text-center min-w-[120px]">
+              <div className="text-sm font-medium text-gray-100">
+                {monthNames[currentMonth]} {currentYear}
+              </div>
+            </div>
+            <button
+              onClick={goToNextMonth}
+              className="p-2 rounded-lg bg-gray-800/40 border border-gray-700/30 hover:bg-gray-800/60 transition-colors"
+            >
+              <span className="text-gray-300">▶</span>
+            </button>
+            <button
+              onClick={goToCurrentMonth}
+              className="px-3 py-1 rounded-lg bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors text-xs text-blue-300"
+            >
+              Today
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-7 gap-1 mb-2">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
             <div key={day} className="text-center text-sm text-gray-400 p-2">
@@ -149,6 +215,26 @@ const Analytics = () => {
               {dayData?.day || ''}
             </div>
           ))}
+        </div>
+        
+        {/* Calendar Footer with Info */}
+        <div className="mt-4 pt-4 border-t border-gray-700/30">
+          <div className="flex items-center justify-between text-xs text-gray-400">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-blue-500/20 border border-blue-500/30"></div>
+                <span>Has Data</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-gray-800/30"></div>
+                <span>No Data</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div>Available dates: {availableDates.length}</div>
+              <div>Date range: {availableDates.length > 0 ? `${availableDates[0]} to ${availableDates[availableDates.length - 1]}` : 'No data'}</div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -282,6 +368,9 @@ const Analytics = () => {
     quality: dailyMetrics?.daily_quality_pass_counts?.[index] || 0
   })) || [];
 
+  console.log('Daily Metrics:', dailyMetrics);
+  console.log('Chart Data:', chartData);
+
   const qualityData = qualityMetrics?.rejection_reasons ? 
     Object.entries(qualityMetrics.rejection_reasons).map(([reason, count]) => ({
       name: reason.replace('_', ' '),
@@ -368,24 +457,28 @@ const Analytics = () => {
         {/* Daily Trends */}
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
           <h3 className="text-lg font-semibold text-gray-100 mb-4">Daily Trends</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="day" stroke="#9CA3AF" />
-              <YAxis stroke="#9CA3AF" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '8px',
-                  color: '#F9FAFB'
-                }}
-              />
-              <Line type="monotone" dataKey="faces" stroke="#3B82F6" strokeWidth={2} />
-              <Line type="monotone" dataKey="sessions" stroke="#10B981" strokeWidth={2} />
-              <Line type="monotone" dataKey="quality" stroke="#F59E0B" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+          {chartData.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No data available for daily trends.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="day" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1F2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#F9FAFB'
+                  }}
+                />
+                <Line type="monotone" dataKey="faces" stroke="#3B82F6" strokeWidth={2} />
+                <Line type="monotone" dataKey="sessions" stroke="#10B981" strokeWidth={2} />
+                <Line type="monotone" dataKey="quality" stroke="#F59E0B" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Rejection Reasons */}

@@ -20,6 +20,7 @@ const Sessions = () => {
       setLoading(true);
       const currentOffset = loadMore ? offset : 0;
       const response = await getSessions(20, currentOffset);
+      console.log('Sessions API Response:', response);
       
       if (loadMore) {
         setSessions(prev => [...prev, ...(response.sessions || [])]);
