@@ -18,14 +18,14 @@
     },
     {
       "id": "store_3",
-      "name": "Raj Store test",
-      "api_endpoint": "https://rajstoretest.35.227.145.87.nip.io/api",
-      "description": "Testing and development store",
-      "location": "Testing Lab",
+      "name": "Nitin Store",
+      "api_endpoint": "http://nitinstoremain.35.227.145.87.nip.io/api",
+      "description": "Primary facial registration store",
+      "location": "Siattle Lab",
       "status": "active"
     }
   ],
-  "default_store": "store_1",
+  "default_store": "store_2",
   "connection_timeout": 5000,
   "retry_attempts": 3,
   "health_check_interval": 30000

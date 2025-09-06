@@ -13,6 +13,8 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentPage, setCurrentPage] = useState(0);
+  const [daysPerPage] = useState(10);
 
   useEffect(() => {
     loadAnalyticsData();
@@ -368,6 +370,82 @@ const Analytics = () => {
     quality: dailyMetrics?.daily_quality_pass_counts?.[index] || 0
   })) || [];
 
+  // Prepare daily customer data with gender distribution
+  const prepareDailyCustomerData = () => {
+    if (!businessAnalytics?.daily_records) return [];
+    
+    // Group records by date
+    const dailyGroups = {};
+    businessAnalytics.daily_records.forEach(record => {
+      const date = record.date;
+      if (!dailyGroups[date]) {
+        dailyGroups[date] = [];
+      }
+      dailyGroups[date].push(record);
+    });
+
+    // Convert to chart data format
+    return Object.entries(dailyGroups).map(([date, records]) => {
+      const uniqueCustomers = new Set(records.map(record => record.person_id));
+      const genderCounts = {
+        male: 0,
+        female: 0,
+        unknown: 0
+      };
+
+      // Count unique customers by gender
+      uniqueCustomers.forEach(personId => {
+        const customerRecord = records.find(record => record.person_id === personId);
+        if (customerRecord) {
+          if (customerRecord.gender === 1) genderCounts.male++;
+          else if (customerRecord.gender === 0) genderCounts.female++;
+          else genderCounts.unknown++;
+        }
+      });
+
+      return {
+        date: date,
+        day: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        totalCustomers: uniqueCustomers.size,
+        male: genderCounts.male,
+        female: genderCounts.female,
+        unknown: genderCounts.unknown
+      };
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
+
+  const dailyCustomerData = prepareDailyCustomerData();
+
+  // Pagination logic for daily customer data
+  const totalPages = Math.ceil(dailyCustomerData.length / daysPerPage);
+  const startIndex = currentPage * daysPerPage;
+  const endIndex = startIndex + daysPerPage;
+  const currentPageData = dailyCustomerData.slice(startIndex, endIndex);
+
+  // Navigation functions
+  const goToNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const goToLatestPage = () => {
+    setCurrentPage(0); // Latest data is at page 0
+  };
+
+  // Reset to latest page when data changes
+  useEffect(() => {
+    if (dailyCustomerData.length > 0) {
+      setCurrentPage(0);
+    }
+  }, [dailyCustomerData.length]);
+
   console.log('Daily Metrics:', dailyMetrics);
   console.log('Chart Data:', chartData);
 
@@ -511,6 +589,262 @@ const Analytics = () => {
             </PieChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      {/* Daily Customer Count with Gender Distribution */}
+      <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-100">Daily Customer Count</h3>
+            {dailyCustomerData.length > 0 && (
+              <p className="text-sm text-gray-400 mt-1">
+                Showing {currentPageData.length} of {dailyCustomerData.length} days 
+                (Page {currentPage + 1} of {totalPages})
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-blue-500"></div>
+              <span className="text-gray-300">Male</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-pink-500"></div>
+              <span className="text-gray-300">Female</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-gray-500"></div>
+              <span className="text-gray-300">Unknown</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Controls */}
+        {dailyCustomerData.length > daysPerPage && (
+          <div className="flex items-center justify-between mb-4 p-3 bg-gray-800/20 rounded-lg">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={goToPreviousPage}
+                disabled={currentPage === 0}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                  currentPage === 0
+                    ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700/70'
+                }`}
+              >
+                ← Previous 10 Days
+              </button>
+              <button
+                onClick={goToLatestPage}
+                className="px-3 py-1 rounded-lg text-sm font-medium bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition-colors"
+              >
+                Latest
+              </button>
+            </div>
+            
+            <div className="text-sm text-gray-400">
+              {currentPageData.length > 0 && (
+                <>
+                  {currentPageData[currentPageData.length - 1].day} to {currentPageData[0].day}
+                </>
+              )}
+            </div>
+            
+            <button
+              onClick={goToNextPage}
+              disabled={currentPage === totalPages - 1}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                currentPage === totalPages - 1
+                  ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700/70'
+              }`}
+            >
+              Next 10 Days →
+            </button>
+          </div>
+        )}
+        
+        {dailyCustomerData.length === 0 ? (
+          <p className="text-gray-400 text-center py-8">No customer data available for daily analysis.</p>
+        ) : (
+          <div className="space-y-4">
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart 
+                data={currentPageData} 
+                margin={{ 
+                  top: 20, 
+                  right: 30, 
+                  left: 20, 
+                  bottom: 60
+                }}
+                barCategoryGap="10%"
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis 
+                  dataKey="day" 
+                  stroke="#9CA3AF"
+                  fontSize={12}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis stroke="#9CA3AF" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1F2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#F9FAFB'
+                  }}
+                  formatter={(value, name) => [
+                    value, 
+                    name === 'male' ? 'Male' : name === 'female' ? 'Female' : 'Unknown'
+                  ]}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Bar dataKey="male" stackId="gender" fill="#3B82F6" name="male" />
+                <Bar dataKey="female" stackId="gender" fill="#EC4899" name="female" />
+                <Bar dataKey="unknown" stackId="gender" fill="#6B7280" name="unknown" />
+              </BarChart>
+            </ResponsiveContainer>
+            
+            {/* Current Page Data Table */}
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-gray-300 mb-2">Current Page Details</h4>
+              <div className="max-h-64 overflow-y-auto bg-gray-800/20 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-gray-800/40">
+                    <tr className="border-b border-gray-700/30">
+                      <th className="text-left p-3 text-gray-300">Date</th>
+                      <th className="text-center p-3 text-gray-300">Total</th>
+                      <th className="text-center p-3 text-gray-300">Male</th>
+                      <th className="text-center p-3 text-gray-300">Female</th>
+                      <th className="text-center p-3 text-gray-300">Unknown</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentPageData.map((day, index) => (
+                      <tr key={index} className="border-b border-gray-700/20 hover:bg-gray-800/10">
+                        <td className="p-3 text-gray-300">{day.day}</td>
+                        <td className="p-3 text-center text-gray-100 font-medium">{day.totalCustomers}</td>
+                        <td className="p-3 text-center text-blue-300">{day.male}</td>
+                        <td className="p-3 text-center text-pink-300">{day.female}</td>
+                        <td className="p-3 text-center text-gray-400">{day.unknown}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Summary Stats */}
+        {dailyCustomerData.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-700/30">
+            {/* Current 10-Day Period Summary */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                Current 10-Day Period Summary
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
+                  <p className="text-gray-400">Days in Period</p>
+                  <p className="text-lg font-semibold text-gray-100">{currentPageData.length}</p>
+                </div>
+                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
+                  <p className="text-gray-400">Total Customers</p>
+                  <p className="text-lg font-semibold text-gray-100">
+                    {currentPageData.reduce((sum, day) => sum + day.totalCustomers, 0)}
+                  </p>
+                </div>
+                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
+                  <p className="text-gray-400">Avg Daily</p>
+                  <p className="text-lg font-semibold text-gray-100">
+                    {currentPageData.length > 0 ? Math.round(currentPageData.reduce((sum, day) => sum + day.totalCustomers, 0) / currentPageData.length) : 0}
+                  </p>
+                </div>
+                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
+                  <p className="text-gray-400">Peak Day</p>
+                  <p className="text-lg font-semibold text-gray-100">
+                    {currentPageData.length > 0 ? Math.max(...currentPageData.map(day => day.totalCustomers)) : 0}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Gender Breakdown for Current Period */}
+              <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
+                <div className="text-center p-2 bg-blue-500/10 rounded-lg">
+                  <p className="text-blue-300 font-medium">
+                    {currentPageData.reduce((sum, day) => sum + day.male, 0)} Male
+                  </p>
+                </div>
+                <div className="text-center p-2 bg-pink-500/10 rounded-lg">
+                  <p className="text-pink-300 font-medium">
+                    {currentPageData.reduce((sum, day) => sum + day.female, 0)} Female
+                  </p>
+                </div>
+                <div className="text-center p-2 bg-gray-500/10 rounded-lg">
+                  <p className="text-gray-300 font-medium">
+                    {currentPageData.reduce((sum, day) => sum + day.unknown, 0)} Unknown
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Overall Statistics */}
+            <div className="pt-4 border-t border-gray-700/20">
+              <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                Overall Statistics (All Time)
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
+                  <p className="text-gray-400">Total Days</p>
+                  <p className="text-lg font-semibold text-gray-100">{dailyCustomerData.length}</p>
+                </div>
+                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
+                  <p className="text-gray-400">Total Customers</p>
+                  <p className="text-lg font-semibold text-gray-100">
+                    {dailyCustomerData.reduce((sum, day) => sum + day.totalCustomers, 0)}
+                  </p>
+                </div>
+                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
+                  <p className="text-gray-400">Overall Avg Daily</p>
+                  <p className="text-lg font-semibold text-gray-100">
+                    {Math.round(dailyCustomerData.reduce((sum, day) => sum + day.totalCustomers, 0) / dailyCustomerData.length)}
+                  </p>
+                </div>
+                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
+                  <p className="text-gray-400">All-Time Peak</p>
+                  <p className="text-lg font-semibold text-gray-100">
+                    {Math.max(...dailyCustomerData.map(day => day.totalCustomers))}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Overall Gender Breakdown */}
+              <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
+                <div className="text-center p-2 bg-blue-500/10 rounded-lg">
+                  <p className="text-blue-300 font-medium">
+                    {dailyCustomerData.reduce((sum, day) => sum + day.male, 0)} Total Male
+                  </p>
+                </div>
+                <div className="text-center p-2 bg-pink-500/10 rounded-lg">
+                  <p className="text-pink-300 font-medium">
+                    {dailyCustomerData.reduce((sum, day) => sum + day.female, 0)} Total Female
+                  </p>
+                </div>
+                <div className="text-center p-2 bg-gray-500/10 rounded-lg">
+                  <p className="text-gray-300 font-medium">
+                    {dailyCustomerData.reduce((sum, day) => sum + day.unknown, 0)} Total Unknown
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quality Metrics Details */}
