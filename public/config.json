@@ -19,7 +19,7 @@
     {
       "id": "store_3",
       "name": "Nitin Store",
-      "api_endpoint": "http://nitinstoremain.35.227.145.87.nip.io/api",
+      "api_endpoint": "https://nitinstoremain.35.227.145.87.nip.io/api",
       "description": "Primary facial registration store",
       "location": "Siattle Lab",
       "status": "active"
