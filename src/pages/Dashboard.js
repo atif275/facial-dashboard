@@ -5,15 +5,18 @@ import LiveSessions from '../components/LiveSessions';
 import RecentVisitors from '../components/RecentVisitors';
 
 const Dashboard = () => {
-  const { getSystemStats, getQualityMetrics, getDailyMetrics, connectionStatus } = useStore();
+  const { getSystemStats, getQualityMetrics, getDailyMetrics, connectionStatus, loading: storeLoading, currentStore } = useStore();
   const [systemStats, setSystemStats] = useState(null);
   const [qualityMetrics, setQualityMetrics] = useState(null);
   const [dailyMetrics, setDailyMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    // Only load data when store is ready and currentStore is set
+    if (!storeLoading && currentStore) {
+      loadDashboardData();
+    }
+  }, [storeLoading, currentStore]);
 
   const loadDashboardData = async () => {
     try {
@@ -115,10 +118,16 @@ const Dashboard = () => {
     }
   };
 
-  if (loading) {
+  // Show loading if store is still loading or if we're loading dashboard data
+  if (storeLoading || loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-4"></div>
+          <p className="text-gray-400">
+            {storeLoading ? 'Loading store configuration...' : 'Loading dashboard data...'}
+          </p>
+        </div>
       </div>
     );
   }

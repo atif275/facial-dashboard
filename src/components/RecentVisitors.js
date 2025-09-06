@@ -4,13 +4,17 @@ import { Link } from 'react-router-dom';
 import { getTimeAgo } from '../utils/timeUtils';
 
 const RecentVisitors = () => {
-  const { getPeople } = useStore();
+  const { getPeople, loading: storeLoading, currentStore } = useStore();
   const [visitors, setVisitors] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadVisitors();
-  }, []);
+    // Only load data when store is ready and currentStore is set
+    if (!storeLoading && currentStore) {
+      console.log('🔄 RecentVisitors: Loading visitors for store:', currentStore.name);
+      loadVisitors();
+    }
+  }, [storeLoading, currentStore]);
 
   const loadVisitors = async () => {
     try {

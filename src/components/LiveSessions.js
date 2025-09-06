@@ -4,13 +4,17 @@ import { Link } from 'react-router-dom';
 import { getTimeAgo } from '../utils/timeUtils';
 
 const LiveSessions = () => {
-  const { getSessions } = useStore();
+  const { getSessions, loading: storeLoading, currentStore } = useStore();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadSessions();
-  }, []);
+    // Only load data when store is ready and currentStore is set
+    if (!storeLoading && currentStore) {
+      console.log('🔄 LiveSessions: Loading sessions for store:', currentStore.name);
+      loadSessions();
+    }
+  }, [storeLoading, currentStore]);
 
   const loadSessions = async () => {
     try {

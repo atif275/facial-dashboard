@@ -66,21 +66,49 @@ export const StoreProvider = ({ children }) => {
   const checkHealth = async (store = currentStore) => {
     if (!store) return;
 
+    const healthUrl = `${store.api_endpoint}/health`;
+    
+    console.log('🏥 Health Check Request:', {
+      url: healthUrl,
+      store: store.name,
+      timestamp: new Date().toISOString()
+    });
+
+    const startTime = Date.now();
+
     try {
       // Check API health
-      const healthResponse = await fetch(`${store.api_endpoint}/health`, {
+      const healthResponse = await fetch(healthUrl, {
         method: 'GET',
         timeout: 5000
       });
 
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+
       if (healthResponse.ok) {
         const healthData = await healthResponse.json();
+        
+        console.log('✅ Health Check Success:', {
+          status: healthResponse.status,
+          duration: `${duration}ms`,
+          healthData: healthData,
+          timestamp: new Date().toISOString()
+        });
+
         setConnectionStatus({
           database: healthData.database_status || 'connected',
           api: 'online',
           processing: healthData.processing_status || 'active'
         });
       } else {
+        console.warn('⚠️ Health Check Failed:', {
+          status: healthResponse.status,
+          statusText: healthResponse.statusText,
+          duration: `${duration}ms`,
+          timestamp: new Date().toISOString()
+        });
+
         setConnectionStatus({
           database: 'disconnected',
           api: 'offline',
@@ -88,7 +116,15 @@ export const StoreProvider = ({ children }) => {
         });
       }
     } catch (error) {
-      console.error('Health check failed:', error);
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      
+      console.error('💥 Health Check Error:', {
+        error: error.message,
+        duration: `${duration}ms`,
+        timestamp: new Date().toISOString()
+      });
+
       setConnectionStatus({
         database: 'disconnected',
         api: 'offline',
@@ -115,19 +151,72 @@ export const StoreProvider = ({ children }) => {
     }
 
     const url = `${currentStore.api_endpoint}${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
+    
+    // Log outgoing request
+    console.log('🚀 API Request:', {
+      method: options.method || 'GET',
+      url: url,
+      endpoint: endpoint,
+      store: currentStore.name,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      body: options.body ? JSON.parse(options.body) : undefined,
+      timestamp: new Date().toISOString()
     });
 
-    if (!response.ok) {
-      throw new Error(`API call failed: ${response.status}`);
-    }
+    const startTime = Date.now();
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
 
-    return response.json();
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+
+      if (!response.ok) {
+        console.error('❌ API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: url,
+          duration: `${duration}ms`,
+          timestamp: new Date().toISOString()
+        });
+        throw new Error(`API call failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Log successful response
+      console.log('✅ API Response:', {
+        status: response.status,
+        url: url,
+        duration: `${duration}ms`,
+        dataSize: JSON.stringify(data).length,
+        data: data,
+        timestamp: new Date().toISOString()
+      });
+
+      return data;
+    } catch (error) {
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      
+      console.error('💥 API Request Failed:', {
+        error: error.message,
+        url: url,
+        duration: `${duration}ms`,
+        timestamp: new Date().toISOString()
+      });
+      
+      throw error;
+    }
   };
 
   // API functions

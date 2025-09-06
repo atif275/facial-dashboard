@@ -25,7 +25,7 @@
       "status": "active"
     }
   ],
-  "default_store": "store_2",
+  "default_store": "store_3",
   "connection_timeout": 5000,
   "retry_attempts": 3,
   "health_check_interval": 30000
