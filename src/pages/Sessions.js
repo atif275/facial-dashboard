@@ -22,10 +22,18 @@ const Sessions = () => {
       const response = await getSessions(20, currentOffset);
       console.log('Sessions API Response:', response);
       
+      // Sort sessions by session_info.timestamp (latest first)
+      const sortedSessions = (response.sessions || []).sort((a, b) => {
+        // Use session_info.timestamp as primary field based on API response structure
+        const timeA = new Date(a.session_info?.timestamp || a.timestamp || a.created_at || 0);
+        const timeB = new Date(b.session_info?.timestamp || b.timestamp || b.created_at || 0);
+        return timeB - timeA; // Latest first
+      });
+      
       if (loadMore) {
-        setSessions(prev => [...prev, ...(response.sessions || [])]);
+        setSessions(prev => [...prev, ...sortedSessions]);
       } else {
-        setSessions(response.sessions || []);
+        setSessions(sortedSessions);
       }
       
       setOffset(currentOffset + 20);
@@ -105,11 +113,11 @@ const Sessions = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="opacity-60">👥</span>
-                  <span>{session.face_count || 0} faces detected</span>
+                  <span>{session.combined_metrics?.faces_detected || 0} faces detected</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="opacity-60">📊</span>
-                  <span>{session.combined_metrics?.total_faces || 0} total faces</span>
+                  <span>{session.combined_metrics?.total_frames_processed || 0} total frames</span>
                 </div>
               </div>
 

@@ -1,20 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { formatDate } from '../utils/timeUtils';
+import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, Legend } from 'recharts';
+import Tooltip from '../components/Tooltip';
 
 const Analytics = () => {
-  const { getDailyMetrics, getQualityMetrics, getSystemStats, getBusinessAnalytics } = useStore();
-  const [dailyMetrics, setDailyMetrics] = useState(null);
-  const [qualityMetrics, setQualityMetrics] = useState(null);
-  const [systemStats, setSystemStats] = useState(null);
-  const [businessAnalytics, setBusinessAnalytics] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(null);
+  const { getOverallAnalytics, getBusinessAnalytics } = useStore();
+  const [overallAnalytics, setOverallAnalytics] = useState(null);
+  const [selectedDateData, setSelectedDateData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [currentPage, setCurrentPage] = useState(0);
-  const [daysPerPage] = useState(10);
+  const [dateLoading, setDateLoading] = useState(false);
+  const [showOverallRaw, setShowOverallRaw] = useState(false);
+  const [showBusinessRaw, setShowBusinessRaw] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  
+  // Weekly Analytics State
+  const [showWeeklyAnalytics, setShowWeeklyAnalytics] = useState(false);
+  const [weeklyData, setWeeklyData] = useState(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(false);
+  
+  // Monthly Analytics State
+  const [showMonthlyAnalytics, setShowMonthlyAnalytics] = useState(false);
+  const [monthlyData, setMonthlyData] = useState(null);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [availableMonths, setAvailableMonths] = useState([]);
 
   useEffect(() => {
     loadAnalyticsData();
@@ -23,17 +32,15 @@ const Analytics = () => {
   const loadAnalyticsData = async () => {
     try {
       setLoading(true);
-      const [daily, quality, stats, business] = await Promise.all([
-        getDailyMetrics(),
-        getQualityMetrics(),
-        getSystemStats(),
-        getBusinessAnalytics()
-      ]);
       
-      setDailyMetrics(daily.daily_metrics);
-      setQualityMetrics(quality.quality_metrics);
-      setSystemStats(stats.system_stats);
-      setBusinessAnalytics(business.business_analytics);
+      // Set today's date as default and load today's data
+      const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      setSelectedDate(today);
+      console.log('📅 Loading data for today:', today);
+      
+      // Load today's business analytics
+      await loadDateData(today);
+      
     } catch (error) {
       console.error('Error loading analytics data:', error);
     } finally {
@@ -41,421 +48,392 @@ const Analytics = () => {
     }
   };
 
-  // Get available dates from business analytics
-  const getAvailableDates = () => {
-    if (!businessAnalytics?.daily_records) return [];
-    return [...new Set(businessAnalytics.daily_records.map(record => record.date))].sort();
+  // Load overall analytics only when requested
+  const loadOverallAnalytics = async () => {
+    try {
+      console.log('📊 Loading overall analytics...');
+      const overall = await getOverallAnalytics();
+      setOverallAnalytics(overall.overall_analytics);
+      console.log('✅ Overall analytics loaded:', overall.overall_analytics);
+    } catch (error) {
+      console.error('Error loading overall analytics:', error);
+      setOverallAnalytics(null);
+    }
   };
 
-  // Get analytics for selected date
-  const getDateAnalytics = (date) => {
-    if (!businessAnalytics?.daily_records) return null;
-    
-    const dayRecords = businessAnalytics.daily_records.filter(record => record.date === date);
-    if (dayRecords.length === 0) return null;
-
-    const uniqueCustomers = new Set(dayRecords.map(record => record.person_id));
-    const totalVisits = dayRecords.reduce((sum, record) => sum + record.daily_visit_count, 0);
-    const repeatCustomers = dayRecords.filter(record => record.is_repeat_customer).length;
-    const frequentVisitors = dayRecords.filter(record => record.daily_visit_count > 1).length;
-
-    const genderDistribution = {
-      female: dayRecords.filter(record => record.gender === 0).length,
-      male: dayRecords.filter(record => record.gender === 1).length,
-      unknown: dayRecords.filter(record => record.gender === -1).length
-    };
-
-    // Age group distribution
-    const ageGroups = {
-      'Babies (0-2)': 0,
-      'Children (3-16)': 0,
-      'Young Adults (17-30)': 0,
-      'Middle-aged Adults (31-45)': 0,
-      'Old Adults (Above 45)': 0,
-      'Unknown': 0
-    };
-
-    dayRecords.forEach(record => {
-      const age = record.age;
-      if (!age || age < 0) {
-        ageGroups['Unknown']++;
-      } else if (age >= 0 && age <= 2) {
-        ageGroups['Babies (0-2)']++;
-      } else if (age >= 3 && age <= 16) {
-        ageGroups['Children (3-16)']++;
-      } else if (age >= 17 && age <= 30) {
-        ageGroups['Young Adults (17-30)']++;
-      } else if (age >= 31 && age <= 45) {
-        ageGroups['Middle-aged Adults (31-45)']++;
-      } else if (age > 45) {
-        ageGroups['Old Adults (Above 45)']++;
-      } else {
-        ageGroups['Unknown']++;
-      }
-    });
-
-    return {
-      date,
-      uniqueCustomers: uniqueCustomers.size,
-      totalVisits,
-      repeatCustomers,
-      frequentVisitors,
-      genderDistribution,
-      ageGroups,
-      customerDetails: dayRecords
-    };
-  };
-
-  // Calendar component
-  const Calendar = () => {
-    const availableDates = getAvailableDates();
-    
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-    
-    const calendarDays = [];
-    for (let i = 0; i < firstDayOfMonth; i++) {
-      calendarDays.push(null);
-    }
-    
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const hasData = availableDates.includes(dateString);
-      calendarDays.push({ day, date: dateString, hasData });
-    }
-
-    const goToPreviousMonth = () => {
-      if (currentMonth === 0) {
-        setCurrentMonth(11);
-        setCurrentYear(currentYear - 1);
-      } else {
-        setCurrentMonth(currentMonth - 1);
-      }
-    };
-
-    const goToNextMonth = () => {
-      const now = new Date();
-      const nextMonth = currentMonth + 1;
-      const nextYear = currentYear;
+  const loadDateData = async (date) => {
+    try {
+      setDateLoading(true);
+      console.log(`📅 Loading business analytics for date: ${date}`);
       
-      // Don't allow going to future months
-      if (nextYear > now.getFullYear() || (nextYear === now.getFullYear() && nextMonth > now.getMonth())) {
+      const business = await getBusinessAnalytics(date);
+      setSelectedDateData(business.business_analytics);
+      
+      // Check if data is empty (all zeros)
+      const hasData = business.business_analytics && (
+        business.business_analytics.unique_customers > 0 ||
+        business.business_analytics.total_visits > 0 ||
+        business.business_analytics.faces_detected > 0
+      );
+      
+      if (!hasData) {
+        console.log(`❌ No data found for date: ${date}`);
+      } else {
+        console.log(`✅ Data loaded for date: ${date}`, business.business_analytics);
+      }
+      
+    } catch (error) {
+      console.error(`Error loading data for date ${date}:`, error);
+      setSelectedDateData(null);
+    } finally {
+      setDateLoading(false);
+    }
+  };
+
+  // Navigation functions
+  const goToPreviousDay = async () => {
+    const currentDate = new Date(selectedDate);
+    currentDate.setDate(currentDate.getDate() - 1);
+    const previousDate = currentDate.toISOString().split('T')[0];
+    
+    setSelectedDate(previousDate);
+    await loadDateData(previousDate);
+  };
+
+  const goToNextDay = async () => {
+    const currentDate = new Date(selectedDate);
+    currentDate.setDate(currentDate.getDate() + 1);
+    const nextDate = currentDate.toISOString().split('T')[0];
+    
+    // Don't allow future dates
+    const today = new Date().toISOString().split('T')[0];
+    if (nextDate <= today) {
+      setSelectedDate(nextDate);
+      await loadDateData(nextDate);
+    }
+  };
+
+  const canGoToNext = () => {
+    const currentDate = new Date(selectedDate);
+    currentDate.setDate(currentDate.getDate() + 1);
+    const nextDate = currentDate.toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
+    return nextDate <= today;
+  };
+
+  // Check if selected date data has any meaningful data
+  const hasDataForSelectedDate = () => {
+    return selectedDateData && (
+      selectedDateData.unique_customers > 0 ||
+      selectedDateData.total_visits > 0 ||
+      selectedDateData.faces_detected > 0
+    );
+  };
+
+  // Weekly Analytics Functions
+  const loadWeeklyAnalytics = async () => {
+    try {
+      setWeeklyLoading(true);
+      console.log('📅 Loading weekly analytics (7 days from today)...');
+      
+      const today = new Date();
+      const weeklyPromises = [];
+      const dates = [];
+      
+      // Get last 7 days including today
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        dates.push(dateStr);
+        weeklyPromises.push(getBusinessAnalytics(dateStr));
+      }
+      
+      const weeklyResults = await Promise.all(weeklyPromises);
+      
+      // Aggregate weekly data
+      const aggregatedData = {
+        dates: dates,
+        total_unique_customers: 0,
+        total_visits: 0,
+        total_faces_detected: 0,
+        total_quality_passed: 0,
+        total_sessions_processed: 0,
+        total_repeat_customers: 0,
+        total_frequent_visitors: 0,
+        gender_distribution: { male: 0, female: 0, unknown: 0 },
+        age_groups: {
+          babies_0_2: 0,
+          children_3_16: 0,
+          young_adults_17_30: 0,
+          middle_aged_31_45: 0,
+          old_adults_45_plus: 0,
+          unknown: 0
+        },
+        rejection_reasons: {
+          blur: 0,
+          extreme_pose: 0,
+          low_confidence: 0,
+          no_face: 0,
+          small_face: 0,
+          missing_landmarks: 0
+        },
+        daily_breakdown: []
+      };
+      
+      weeklyResults.forEach((result, index) => {
+        const data = result.business_analytics;
+        if (data) {
+          aggregatedData.total_unique_customers += data.unique_customers || 0;
+          aggregatedData.total_visits += data.total_visits || 0;
+          aggregatedData.total_faces_detected += data.faces_detected || 0;
+          aggregatedData.total_quality_passed += data.quality_passed || 0;
+          aggregatedData.total_sessions_processed += data.sessions_processed || 0;
+          aggregatedData.total_repeat_customers += data.repeat_customers || 0;
+          aggregatedData.total_frequent_visitors += data.frequent_visitors || 0;
+          
+          // Aggregate gender distribution
+          if (data.gender_distribution) {
+            aggregatedData.gender_distribution.male += data.gender_distribution.male || 0;
+            aggregatedData.gender_distribution.female += data.gender_distribution.female || 0;
+            aggregatedData.gender_distribution.unknown += data.gender_distribution.unknown || 0;
+          }
+          
+          // Aggregate age groups
+          if (data.age_groups) {
+            Object.keys(aggregatedData.age_groups).forEach(key => {
+              aggregatedData.age_groups[key] += data.age_groups[key] || 0;
+            });
+          }
+          
+          // Aggregate rejection reasons
+          if (data.rejection_reasons) {
+            Object.keys(aggregatedData.rejection_reasons).forEach(key => {
+              aggregatedData.rejection_reasons[key] += data.rejection_reasons[key] || 0;
+            });
+          }
+          
+          // Add daily breakdown
+          aggregatedData.daily_breakdown.push({
+            date: dates[index],
+            ...data
+          });
+        }
+      });
+      
+      setWeeklyData(aggregatedData);
+      console.log('✅ Weekly analytics loaded:', aggregatedData);
+      
+    } catch (error) {
+      console.error('Error loading weekly analytics:', error);
+      setWeeklyData(null);
+    } finally {
+      setWeeklyLoading(false);
+    }
+  };
+
+  // Monthly Analytics Functions
+  const loadMonthlyAnalytics = async (monthOffset = 0) => {
+    try {
+      setMonthlyLoading(true);
+      
+      const today = new Date();
+      const targetDate = new Date(today.getFullYear(), today.getMonth() - monthOffset, 1);
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth();
+      const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+      
+      console.log(`📅 Loading monthly analytics for ${monthStr}...`);
+      
+      // Get all dates in the month
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const monthlyPromises = [];
+      const dates = [];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        dates.push(dateStr);
+        monthlyPromises.push(getBusinessAnalytics(dateStr));
+      }
+      
+      const monthlyResults = await Promise.all(monthlyPromises);
+      
+      // Check if any data exists for this month
+      const hasAnyData = monthlyResults.some(result => {
+        const data = result.business_analytics;
+        return data && (
+          data.unique_customers > 0 ||
+          data.total_visits > 0 ||
+          data.faces_detected > 0
+        );
+      });
+      
+      if (!hasAnyData) {
+        setMonthlyData({ hasData: false, month: monthStr, monthName: targetDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) });
+        console.log(`❌ No data found for month: ${monthStr}`);
         return;
       }
       
-      if (nextMonth > 11) {
-        setCurrentMonth(0);
-        setCurrentYear(currentYear + 1);
-      } else {
-        setCurrentMonth(nextMonth);
-      }
-    };
-
-    const goToCurrentMonth = () => {
-      const now = new Date();
-      setCurrentMonth(now.getMonth());
-      setCurrentYear(now.getFullYear());
-    };
-
-    const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-
-    return (
-      <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-        {/* Calendar Header with Navigation */}
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-100">Business Analytics Calendar</h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={goToPreviousMonth}
-              className="p-2 rounded-lg bg-gray-800/40 border border-gray-700/30 hover:bg-gray-800/60 transition-colors"
-            >
-              <span className="text-gray-300">◀</span>
-            </button>
-            <div className="text-center min-w-[120px]">
-              <div className="text-sm font-medium text-gray-100">
-                {monthNames[currentMonth]} {currentYear}
-              </div>
-            </div>
-            <button
-              onClick={goToNextMonth}
-              className="p-2 rounded-lg bg-gray-800/40 border border-gray-700/30 hover:bg-gray-800/60 transition-colors"
-            >
-              <span className="text-gray-300">▶</span>
-            </button>
-            <button
-              onClick={goToCurrentMonth}
-              className="px-3 py-1 rounded-lg bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors text-xs text-blue-300"
-            >
-              Today
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="text-center text-sm text-gray-400 p-2">
-              {day}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {calendarDays.map((dayData, index) => (
-            <div
-              key={index}
-              className={`p-2 text-center text-sm rounded-lg cursor-pointer transition-all ${
-                dayData === null
-                  ? 'text-gray-600'
-                  : dayData.hasData
-                  ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/30'
-                  : 'text-gray-500 hover:bg-gray-800/30'
-              } ${selectedDate === dayData?.date ? 'ring-2 ring-blue-500' : ''}`}
-              onClick={() => dayData?.hasData && setSelectedDate(dayData.date)}
-            >
-              {dayData?.day || ''}
-            </div>
-          ))}
-        </div>
-        
-        {/* Calendar Footer with Info */}
-        <div className="mt-4 pt-4 border-t border-gray-700/30">
-          <div className="flex items-center justify-between text-xs text-gray-400">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-blue-500/20 border border-blue-500/30"></div>
-                <span>Has Data</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-gray-800/30"></div>
-                <span>No Data</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <div>Available dates: {availableDates.length}</div>
-              <div>Date range: {availableDates.length > 0 ? `${availableDates[0]} to ${availableDates[availableDates.length - 1]}` : 'No data'}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Business Analytics Details
-  const BusinessAnalyticsDetails = () => {
-    if (!selectedDate) {
-      return (
-        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">Business Analytics</h3>
-          <p className="text-gray-400 text-center py-8">Select a date from the calendar to view business analytics</p>
-        </div>
-      );
-    }
-
-    const analytics = getDateAnalytics(selectedDate);
-    if (!analytics) return null;
-
-    return (
-      <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-100 mb-4">
-          Business Analytics - {formatDate(selectedDate)}
-        </h3>
-        
-        {/* Key Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="text-center p-4 bg-gray-800/20 rounded-xl">
-            <p className="text-2xl font-bold text-gray-100">{analytics.uniqueCustomers}</p>
-            <p className="text-sm text-gray-400">👥 Unique Customers</p>
-          </div>
-          <div className="text-center p-4 bg-gray-800/20 rounded-xl">
-            <p className="text-2xl font-bold text-gray-100">{analytics.totalVisits}</p>
-            <p className="text-sm text-gray-400">🚶 Total Visits</p>
-          </div>
-          <div className="text-center p-4 bg-gray-800/20 rounded-xl">
-            <p className="text-2xl font-bold text-gray-100">{analytics.repeatCustomers}</p>
-            <p className="text-sm text-gray-400">🔄 Repeat Customers</p>
-          </div>
-          <div className="text-center p-4 bg-gray-800/20 rounded-xl">
-            <p className="text-2xl font-bold text-gray-100">{analytics.frequentVisitors}</p>
-            <p className="text-sm text-gray-400">⚡ Frequent Visitors</p>
-          </div>
-        </div>
-
-        {/* Gender Distribution */}
-        <div className="mb-6">
-          <h4 className="text-md font-semibold text-gray-100 mb-3">👫 Gender Distribution</h4>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Female</span>
-              <span className="text-gray-100 font-medium">{analytics.genderDistribution.female} customers</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Male</span>
-              <span className="text-gray-100 font-medium">{analytics.genderDistribution.male} customers</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Unknown</span>
-              <span className="text-gray-100 font-medium">{analytics.genderDistribution.unknown} customers</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Age Group Distribution */}
-        <div className="mb-6">
-          <h4 className="text-md font-semibold text-gray-100 mb-3">👴 Age Group Distribution</h4>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Babies (0-2)</span>
-              <span className="text-gray-100 font-medium">{analytics.ageGroups['Babies (0-2)']} customers</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Children (3-16)</span>
-              <span className="text-gray-100 font-medium">{analytics.ageGroups['Children (3-16)']} customers</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Young Adults (17-30)</span>
-              <span className="text-gray-100 font-medium">{analytics.ageGroups['Young Adults (17-30)']} customers</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Middle-aged Adults (31-45)</span>
-              <span className="text-gray-100 font-medium">{analytics.ageGroups['Middle-aged Adults (31-45)']} customers</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Old Adults (Above 45)</span>
-              <span className="text-gray-100 font-medium">{analytics.ageGroups['Old Adults (Above 45)']} customers</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Unknown</span>
-              <span className="text-gray-100 font-medium">{analytics.ageGroups['Unknown']} customers</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Customer Details */}
-        <div>
-          <h4 className="text-md font-semibold text-gray-100 mb-3">📋 Customer Details</h4>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
-            {analytics.customerDetails.map((customer, index) => (
-              <div key={index} className="bg-gray-800/20 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-100 font-medium">{customer.person_id}</span>
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    customer.is_repeat_customer 
-                      ? 'bg-green-500/20 text-green-300' 
-                      : 'bg-blue-500/20 text-blue-300'
-                  }`}>
-                    {customer.is_repeat_customer ? 'Repeat' : 'New'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm text-gray-400">
-                  <div>Age: {customer.age}</div>
-                  <div>Gender: {customer.gender === 0 ? 'Female' : customer.gender === 1 ? 'Male' : 'Unknown'}</div>
-                  <div>Visits: {customer.daily_visit_count}</div>
-                  <div>Sessions: {customer.session_names.length}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Prepare chart data
-  const chartData = dailyMetrics?.daily_face_counts?.map((count, index) => ({
-    day: `Day ${index + 1}`,
-    faces: count,
-    sessions: dailyMetrics?.daily_session_counts?.[index] || 0,
-    quality: dailyMetrics?.daily_quality_pass_counts?.[index] || 0
-  })) || [];
-
-  // Prepare daily customer data with gender distribution
-  const prepareDailyCustomerData = () => {
-    if (!businessAnalytics?.daily_records) return [];
-    
-    // Group records by date
-    const dailyGroups = {};
-    businessAnalytics.daily_records.forEach(record => {
-      const date = record.date;
-      if (!dailyGroups[date]) {
-        dailyGroups[date] = [];
-      }
-      dailyGroups[date].push(record);
-    });
-
-    // Convert to chart data format
-    return Object.entries(dailyGroups).map(([date, records]) => {
-      const uniqueCustomers = new Set(records.map(record => record.person_id));
-      const genderCounts = {
-        male: 0,
-        female: 0,
-        unknown: 0
+      // Aggregate monthly data
+      const aggregatedData = {
+        hasData: true,
+        month: monthStr,
+        monthName: targetDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        dates: dates,
+        total_unique_customers: 0,
+        total_visits: 0,
+        total_faces_detected: 0,
+        total_quality_passed: 0,
+        total_sessions_processed: 0,
+        total_repeat_customers: 0,
+        total_frequent_visitors: 0,
+        gender_distribution: { male: 0, female: 0, unknown: 0 },
+        age_groups: {
+          babies_0_2: 0,
+          children_3_16: 0,
+          young_adults_17_30: 0,
+          middle_aged_31_45: 0,
+          old_adults_45_plus: 0,
+          unknown: 0
+        },
+        rejection_reasons: {
+          blur: 0,
+          extreme_pose: 0,
+          low_confidence: 0,
+          no_face: 0,
+          small_face: 0,
+          missing_landmarks: 0
+        },
+        daily_breakdown: []
       };
-
-      // Count unique customers by gender
-      uniqueCustomers.forEach(personId => {
-        const customerRecord = records.find(record => record.person_id === personId);
-        if (customerRecord) {
-          if (customerRecord.gender === 1) genderCounts.male++;
-          else if (customerRecord.gender === 0) genderCounts.female++;
-          else genderCounts.unknown++;
+      
+      // Create daily breakdown for ALL days, filling zeros for missing data
+      monthlyResults.forEach((result, index) => {
+        const data = result.business_analytics;
+        const dateStr = dates[index];
+        
+        if (data && (data.unique_customers > 0 || data.total_visits > 0 || data.faces_detected > 0)) {
+          // Has data - aggregate totals and add to daily breakdown
+          aggregatedData.total_unique_customers += data.unique_customers || 0;
+          aggregatedData.total_visits += data.total_visits || 0;
+          aggregatedData.total_faces_detected += data.faces_detected || 0;
+          aggregatedData.total_quality_passed += data.quality_passed || 0;
+          aggregatedData.total_sessions_processed += data.sessions_processed || 0;
+          aggregatedData.total_repeat_customers += data.repeat_customers || 0;
+          aggregatedData.total_frequent_visitors += data.frequent_visitors || 0;
+          
+          // Aggregate gender distribution
+          if (data.gender_distribution) {
+            aggregatedData.gender_distribution.male += data.gender_distribution.male || 0;
+            aggregatedData.gender_distribution.female += data.gender_distribution.female || 0;
+            aggregatedData.gender_distribution.unknown += data.gender_distribution.unknown || 0;
+          }
+          
+          // Aggregate age groups
+          if (data.age_groups) {
+            Object.keys(aggregatedData.age_groups).forEach(key => {
+              aggregatedData.age_groups[key] += data.age_groups[key] || 0;
+            });
+          }
+          
+          // Aggregate rejection reasons
+          if (data.rejection_reasons) {
+            Object.keys(aggregatedData.rejection_reasons).forEach(key => {
+              aggregatedData.rejection_reasons[key] += data.rejection_reasons[key] || 0;
+            });
+          }
+          
+          // Add actual data to daily breakdown
+          aggregatedData.daily_breakdown.push({
+            date: dateStr,
+            ...data
+          });
+        } else {
+          // No data - add empty entry with zeros
+          aggregatedData.daily_breakdown.push({
+            date: dateStr,
+            unique_customers: 0,
+            total_visits: 0,
+            faces_detected: 0,
+            quality_passed: 0,
+            sessions_processed: 0,
+            repeat_customers: 0,
+            frequent_visitors: 0,
+            gender_distribution: { male: 0, female: 0, unknown: 0 },
+            age_groups: {
+              babies_0_2: 0,
+              children_3_16: 0,
+              young_adults_17_30: 0,
+              middle_aged_31_45: 0,
+              old_adults_45_plus: 0,
+              unknown: 0
+            },
+            rejection_reasons: {
+              blur: 0,
+              extreme_pose: 0,
+              low_confidence: 0,
+              no_face: 0,
+              small_face: 0,
+              missing_landmarks: 0
+            }
+          });
         }
       });
-
-      return {
-        date: date,
-        day: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        totalCustomers: uniqueCustomers.size,
-        male: genderCounts.male,
-        female: genderCounts.female,
-        unknown: genderCounts.unknown
-      };
-    }).sort((a, b) => new Date(a.date) - new Date(b.date));
-  };
-
-  const dailyCustomerData = prepareDailyCustomerData();
-
-  // Pagination logic for daily customer data
-  const totalPages = Math.ceil(dailyCustomerData.length / daysPerPage);
-  const startIndex = currentPage * daysPerPage;
-  const endIndex = startIndex + daysPerPage;
-  const currentPageData = dailyCustomerData.slice(startIndex, endIndex);
-
-  // Navigation functions
-  const goToNextPage = () => {
-    if (currentPage < totalPages - 1) {
-      setCurrentPage(currentPage + 1);
+      
+      setMonthlyData(aggregatedData);
+      console.log(`✅ Monthly analytics loaded for ${monthStr}:`, aggregatedData);
+      
+    } catch (error) {
+      console.error('Error loading monthly analytics:', error);
+      setMonthlyData(null);
+    } finally {
+      setMonthlyLoading(false);
     }
   };
 
-  const goToPreviousPage = () => {
-    if (currentPage > 0) {
-      setCurrentPage(currentPage - 1);
+  // Initialize available months (current month and 3 months back)
+  const initializeAvailableMonths = () => {
+    const today = new Date();
+    const months = [];
+    
+    for (let i = 0; i < 4; i++) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      months.push({ value: i, label: monthName, monthStr });
     }
+    
+    setAvailableMonths(months);
+    setSelectedMonth(0); // Current month
   };
 
-  const goToLatestPage = () => {
-    setCurrentPage(0); // Latest data is at page 0
+  // Handle dropdown toggles
+  const handleWeeklyToggle = async () => {
+    if (!showWeeklyAnalytics && !weeklyData) {
+      await loadWeeklyAnalytics();
+    }
+    setShowWeeklyAnalytics(!showWeeklyAnalytics);
   };
 
-  // Reset to latest page when data changes
-  useEffect(() => {
-    if (dailyCustomerData.length > 0) {
-      setCurrentPage(0);
+  const handleMonthlyToggle = async () => {
+    if (!showMonthlyAnalytics && !monthlyData) {
+      initializeAvailableMonths();
+      await loadMonthlyAnalytics(0); // Load current month
     }
-  }, [dailyCustomerData.length]);
+    setShowMonthlyAnalytics(!showMonthlyAnalytics);
+  };
 
-  console.log('Daily Metrics:', dailyMetrics);
-  console.log('Chart Data:', chartData);
+  const handleMonthChange = async (monthOffset) => {
+    setSelectedMonth(monthOffset);
+    await loadMonthlyAnalytics(monthOffset);
+  };
 
-  const qualityData = qualityMetrics?.rejection_reasons ? 
-    Object.entries(qualityMetrics.rejection_reasons).map(([reason, count]) => ({
-      name: reason.replace('_', ' '),
-      value: count
-    })) : [];
-
-  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+  const handleOverallToggle = async () => {
+    if (!showOverallRaw && !overallAnalytics) {
+      await loadOverallAnalytics();
+    }
+    setShowOverallRaw(!showOverallRaw);
+  };
 
   if (loading) {
     return (
@@ -471,375 +449,889 @@ const Analytics = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-100">Analytics</h1>
-          <p className="text-gray-400">Comprehensive insights and performance metrics</p>
+          <p className="text-gray-400">Per-day analytics data and insights</p>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <span className="opacity-60">📊</span>
-          <span>Real-time data</span>
+          <span>Analytics overview</span>
         </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Date Navigation */}
+      {selectedDate && (
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Total Faces</p>
-              <p className="text-3xl font-bold text-gray-100">{systemStats?.total_faces?.toLocaleString() || 0}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
-              <span className="text-blue-300 text-xl opacity-80">👥</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Quality Rate</p>
-              <p className="text-3xl font-bold text-gray-100">{qualityMetrics?.quality_pass_rate_percent || 0}%</p>
-            </div>
-            <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-              <span className="text-green-300 text-xl opacity-80">✅</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Detection Rate</p>
-              <p className="text-3xl font-bold text-gray-100">{qualityMetrics?.detection_rate_percent || 0}%</p>
-            </div>
-            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
-              <span className="text-purple-300 text-xl opacity-80">🎯</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Unique Visitors</p>
-              <p className="text-3xl font-bold text-gray-100">{systemStats?.unique_person_ids?.toLocaleString() || 0}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
-              <span className="text-orange-300 text-xl opacity-80">👤</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Daily Trends */}
-        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">Daily Trends</h3>
-          {chartData.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">No data available for daily trends.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="day" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1F2937', 
-                    border: '1px solid #374151',
-                    borderRadius: '8px',
-                    color: '#F9FAFB'
-                  }}
-                />
-                <Line type="monotone" dataKey="faces" stroke="#3B82F6" strokeWidth={2} />
-                <Line type="monotone" dataKey="sessions" stroke="#10B981" strokeWidth={2} />
-                <Line type="monotone" dataKey="quality" stroke="#F59E0B" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* Rejection Reasons */}
-        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">Rejection Reasons</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={qualityData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {qualityData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '8px',
-                  color: '#F9FAFB'
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Daily Customer Count with Gender Distribution */}
-      <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-100">Daily Customer Count</h3>
-            {dailyCustomerData.length > 0 && (
-              <p className="text-sm text-gray-400 mt-1">
-                Showing {currentPageData.length} of {dailyCustomerData.length} days 
-                (Page {currentPage + 1} of {totalPages})
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-blue-500"></div>
-              <span className="text-gray-300">Male</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-pink-500"></div>
-              <span className="text-gray-300">Female</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-gray-500"></div>
-              <span className="text-gray-300">Unknown</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Controls */}
-        {dailyCustomerData.length > daysPerPage && (
-          <div className="flex items-center justify-between mb-4 p-3 bg-gray-800/20 rounded-lg">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={goToPreviousPage}
-                disabled={currentPage === 0}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                  currentPage === 0
-                    ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed'
-                    : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700/70'
-                }`}
-              >
-                ← Previous 10 Days
-              </button>
-              <button
-                onClick={goToLatestPage}
-                className="px-3 py-1 rounded-lg text-sm font-medium bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition-colors"
-              >
-                Latest
-              </button>
+          <div className="flex flex-col space-y-4">
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📅</span>
+              <h3 className="text-lg font-semibold text-gray-100">Analytics Date</h3>
             </div>
             
-            <div className="text-sm text-gray-400">
-              {currentPageData.length > 0 && (
-                <>
-                  {currentPageData[currentPageData.length - 1].day} to {currentPageData[0].day}
-                </>
+            {/* Date Selector */}
+            <div className="flex items-center justify-center">
+              <div className="flex items-center bg-gray-800/30 rounded-xl p-2 gap-2">
+                {/* Previous Day Button */}
+                <button
+                  onClick={goToPreviousDay}
+                  disabled={dateLoading}
+                  className="flex items-center justify-center w-10 h-10 bg-gray-700/40 hover:bg-gray-600/60 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
+                  title="Previous Day"
+                >
+                  <span className="text-gray-300 group-hover:text-white transition-colors">
+                    {dateLoading ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                    ) : (
+                      '←'
+                    )}
+                  </span>
+                </button>
+                
+                {/* Date Display */}
+                <div className="px-6 py-2 bg-gray-800/60 rounded-lg min-w-[200px]">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-gray-100">
+                      {new Date(selectedDate).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {selectedDate}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Next Day Button */}
+                <button
+                  onClick={goToNextDay}
+                  disabled={!canGoToNext() || dateLoading}
+                  className="flex items-center justify-center w-10 h-10 bg-gray-700/40 hover:bg-gray-600/60 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
+                  title="Next Day"
+                >
+                  <span className="text-gray-300 group-hover:text-white transition-colors">→</span>
+                </button>
+              </div>
+            </div>
+            
+            {/* Status and Quick Actions */}
+            <div className="flex items-center justify-between">
+              {/* Status Indicator */}
+              <div className="flex items-center gap-2">
+                {dateLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-400"></div>
+                    <span className="text-sm text-blue-400">Loading analytics...</span>
+                  </>
+                ) : hasDataForSelectedDate() ? (
+                  <>
+                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-green-400">Data available</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                    <span className="text-sm text-gray-400">No data found</span>
+                  </>
+                )}
+              </div>
+              
+              {/* Quick Actions */}
+              <div className="flex items-center gap-2">
+                {/* Date Picker */}
+                <input
+                  type="date"
+                  value={selectedDate}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={async (e) => {
+                    const newDate = e.target.value;
+                    if (newDate) {
+                      setSelectedDate(newDate);
+                      await loadDateData(newDate);
+                    }
+                  }}
+                  disabled={dateLoading}
+                  className="px-2 py-1 bg-gray-800/60 border border-gray-700/30 rounded-lg text-xs text-gray-300 hover:border-gray-600/50 focus:border-blue-500/50 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                
+                {/* Today Button */}
+                {selectedDate !== new Date().toISOString().split('T')[0] && (
+                  <button
+                    onClick={async () => {
+                      const today = new Date().toISOString().split('T')[0];
+                      setSelectedDate(today);
+                      await loadDateData(today);
+                    }}
+                    disabled={dateLoading}
+                    className="px-3 py-1 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 rounded-lg text-xs text-blue-300 hover:text-blue-200 transition-all duration-200 disabled:opacity-50"
+                  >
+                    Today
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Daily Analytics Display */}
+      {dateLoading ? (
+        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+          <div className="flex items-center justify-center h-32">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mx-auto mb-3"></div>
+              <p className="text-gray-400">Loading analytics for {selectedDate}...</p>
+            </div>
+          </div>
+        </div>
+      ) : !hasDataForSelectedDate() ? (
+        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+          <div className="text-center py-12">
+            <span className="text-6xl text-gray-600 mb-4 block opacity-50">📊</span>
+            <h3 className="text-xl font-semibold text-gray-100 mb-2">No Data Found</h3>
+            <p className="text-gray-400 mb-4">No analytics data available for {selectedDate}</p>
+            <p className="text-sm text-gray-500">
+              This could mean no sessions were processed on this date, or data hasn't been generated yet.
+            </p>
+          </div>
+        </div>
+      ) : selectedDateData && (
+        <div className="space-y-6">
+          {/* Daily Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-400">Unique Customers</p>
+                    <Tooltip text="Unique Customers - Number of distinct individuals identified on this specific date">
+                      <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                        ℹ️
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-100">{selectedDateData.unique_customers}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                  <span className="text-blue-300 text-xl opacity-80">👥</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-400">Total Visits</p>
+                    <Tooltip text="Total Visits - Total number of customer visits detected and processed on this date">
+                      <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                        ℹ️
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-100">{selectedDateData.total_visits}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                  <span className="text-green-300 text-xl opacity-80">📊</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-400">Faces Detected</p>
+                    <Tooltip text="Faces Detected - Total number of face detections across all sessions processed on this date">
+                      <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                        ℹ️
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-100">{selectedDateData.faces_detected}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                  <span className="text-purple-300 text-xl opacity-80">🎯</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-400">Quality Pass Rate</p>
+                    <Tooltip text="Quality Pass Rate - Percentage of detected faces that met quality standards for recognition. Formula: (Quality Passed ÷ Faces Detected) × 100">
+                      <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                        ℹ️
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-100">
+                    {Math.round((selectedDateData.quality_passed / selectedDateData.faces_detected) * 100)}%
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                  <span className="text-orange-300 text-xl opacity-80">✅</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Charts Section */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">📊</span>
+              <h3 className="text-xl font-semibold text-gray-100">Analytics Charts</h3>
+              <Tooltip text="Analytics Charts - Visual representation of daily analytics data including demographics, quality metrics, and customer insights">
+                <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                  ℹ️
+                </span>
+              </Tooltip>
+            </div>
+
+            {/* First Row - Pie Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Gender Distribution Pie Chart */}
+              <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+                <h4 className="text-lg font-semibold text-gray-100 mb-6">Gender Distribution</h4>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Male', value: selectedDateData.gender_distribution?.male || 0, color: '#3B82F6' },
+                          { name: 'Female', value: selectedDateData.gender_distribution?.female || 0, color: '#EC4899' },
+                          { name: 'Unknown', value: selectedDateData.gender_distribution?.unknown || 0, color: '#6B7280' }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        innerRadius={40}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {[
+                          { name: 'Male', value: selectedDateData.gender_distribution?.male || 0, color: '#3B82F6' },
+                          { name: 'Female', value: selectedDateData.gender_distribution?.female || 0, color: '#EC4899' },
+                          { name: 'Unknown', value: selectedDateData.gender_distribution?.unknown || 0, color: '#6B7280' }
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1F2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F9FAFB'
+                        }}
+                        labelStyle={{ color: '#F9FAFB' }}
+                        itemStyle={{ color: '#F9FAFB' }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ color: '#F9FAFB' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Rejection Reasons Pie Chart */}
+              <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+                <h4 className="text-lg font-semibold text-gray-100 mb-6">Rejection Reasons</h4>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Blur', value: selectedDateData.rejection_reasons?.blur || 0, color: '#EF4444' },
+                          { name: 'Extreme Pose', value: selectedDateData.rejection_reasons?.extreme_pose || 0, color: '#F97316' },
+                          { name: 'Low Confidence', value: selectedDateData.rejection_reasons?.low_confidence || 0, color: '#EAB308' },
+                          { name: 'No Face', value: selectedDateData.rejection_reasons?.no_face || 0, color: '#8B5CF6' },
+                          { name: 'Small Face', value: selectedDateData.rejection_reasons?.small_face || 0, color: '#06B6D4' },
+                          { name: 'Missing Landmarks', value: selectedDateData.rejection_reasons?.missing_landmarks || 0, color: '#10B981' }
+                        ].filter(item => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        innerRadius={40}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {[
+                          { name: 'Blur', value: selectedDateData.rejection_reasons?.blur || 0, color: '#EF4444' },
+                          { name: 'Extreme Pose', value: selectedDateData.rejection_reasons?.extreme_pose || 0, color: '#F97316' },
+                          { name: 'Low Confidence', value: selectedDateData.rejection_reasons?.low_confidence || 0, color: '#EAB308' },
+                          { name: 'No Face', value: selectedDateData.rejection_reasons?.no_face || 0, color: '#8B5CF6' },
+                          { name: 'Small Face', value: selectedDateData.rejection_reasons?.small_face || 0, color: '#06B6D4' },
+                          { name: 'Missing Landmarks', value: selectedDateData.rejection_reasons?.missing_landmarks || 0, color: '#10B981' }
+                        ].filter(item => item.value > 0).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1F2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F9FAFB'
+                        }}
+                        labelStyle={{ color: '#F9FAFB' }}
+                        itemStyle={{ color: '#F9FAFB' }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ color: '#F9FAFB' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Second Row - Bar Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Age Groups Bar Chart */}
+              <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+                <h4 className="text-lg font-semibold text-gray-100 mb-6">Age Distribution</h4>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={[
+                        { name: 'Babies\n(0-2)', value: selectedDateData.age_groups?.babies_0_2 || 0 },
+                        { name: 'Children\n(3-16)', value: selectedDateData.age_groups?.children_3_16 || 0 },
+                        { name: 'Young Adults\n(17-30)', value: selectedDateData.age_groups?.young_adults_17_30 || 0 },
+                        { name: 'Middle Aged\n(31-45)', value: selectedDateData.age_groups?.middle_aged_31_45 || 0 },
+                        { name: 'Older Adults\n(45+)', value: selectedDateData.age_groups?.old_adults_45_plus || 0 },
+                        { name: 'Unknown', value: selectedDateData.age_groups?.unknown || 0 }
+                      ]}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#9CA3AF"
+                        fontSize={12}
+                        tick={{ fill: '#9CA3AF' }}
+                      />
+                      <YAxis 
+                        stroke="#9CA3AF"
+                        fontSize={12}
+                        tick={{ fill: '#9CA3AF' }}
+                      />
+                      <ChartTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1F2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F9FAFB'
+                        }}
+                        labelStyle={{ color: '#F9FAFB' }}
+                        itemStyle={{ color: '#F9FAFB' }}
+                      />
+                      <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Quality Metrics Bar Chart */}
+              <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+                <h4 className="text-lg font-semibold text-gray-100 mb-6">Processing Quality</h4>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={[
+                        { 
+                          name: 'Faces Detected', 
+                          value: selectedDateData.faces_detected || 0,
+                          color: '#3B82F6'
+                        },
+                        { 
+                          name: 'Quality Passed', 
+                          value: selectedDateData.quality_passed || 0,
+                          color: '#10B981'
+                        },
+                        { 
+                          name: 'Quality Failed', 
+                          value: (selectedDateData.faces_detected || 0) - (selectedDateData.quality_passed || 0),
+                          color: '#EF4444'
+                        }
+                      ]}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#9CA3AF"
+                        fontSize={12}
+                        tick={{ fill: '#9CA3AF' }}
+                      />
+                      <YAxis 
+                        stroke="#9CA3AF"
+                        fontSize={12}
+                        tick={{ fill: '#9CA3AF' }}
+                      />
+                      <ChartTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1F2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F9FAFB'
+                        }}
+                        labelStyle={{ color: '#F9FAFB' }}
+                        itemStyle={{ color: '#F9FAFB' }}
+                      />
+                      <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Third Row - Customer Insights */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Customer Type Distribution */}
+              <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+                <h4 className="text-lg font-semibold text-gray-100 mb-6">Customer Insights</h4>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { 
+                            name: 'New Customers', 
+                            value: (selectedDateData.unique_customers || 0) - (selectedDateData.repeat_customers || 0),
+                            color: '#10B981' 
+                          },
+                          { 
+                            name: 'Repeat Customers', 
+                            value: selectedDateData.repeat_customers || 0,
+                            color: '#F59E0B' 
+                          },
+                          { 
+                            name: 'Frequent Visitors', 
+                            value: selectedDateData.frequent_visitors || 0,
+                            color: '#8B5CF6' 
+                          }
+                        ].filter(item => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        innerRadius={40}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {[
+                          { 
+                            name: 'New Customers', 
+                            value: (selectedDateData.unique_customers || 0) - (selectedDateData.repeat_customers || 0),
+                            color: '#10B981' 
+                          },
+                          { 
+                            name: 'Repeat Customers', 
+                            value: selectedDateData.repeat_customers || 0,
+                            color: '#F59E0B' 
+                          },
+                          { 
+                            name: 'Frequent Visitors', 
+                            value: selectedDateData.frequent_visitors || 0,
+                            color: '#8B5CF6' 
+                          }
+                        ].filter(item => item.value > 0).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1F2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F9FAFB'
+                        }}
+                        labelStyle={{ color: '#F9FAFB' }}
+                        itemStyle={{ color: '#F9FAFB' }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ color: '#F9FAFB' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Sessions vs Visits */}
+              <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+                <h4 className="text-lg font-semibold text-gray-100 mb-6">Activity Overview</h4>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={[
+                        { 
+                          name: 'Sessions Processed', 
+                          value: selectedDateData.sessions_processed || 0,
+                          color: '#3B82F6'
+                        },
+                        { 
+                          name: 'Total Visits', 
+                          value: selectedDateData.total_visits || 0,
+                          color: '#10B981'
+                        },
+                        { 
+                          name: 'Unique Customers', 
+                          value: selectedDateData.unique_customers || 0,
+                          color: '#F59E0B'
+                        }
+                      ]}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#9CA3AF"
+                        fontSize={12}
+                        tick={{ fill: '#9CA3AF' }}
+                      />
+                      <YAxis 
+                        stroke="#9CA3AF"
+                        fontSize={12}
+                        tick={{ fill: '#9CA3AF' }}
+                      />
+                      <ChartTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1F2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F9FAFB'
+                        }}
+                        labelStyle={{ color: '#F9FAFB' }}
+                        itemStyle={{ color: '#F9FAFB' }}
+                      />
+                      <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Demographics */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-100">Gender Distribution</h3>
+                <Tooltip text="Gender Distribution - Breakdown of customer demographics by gender for the selected date">
+                  <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                    ℹ️
+                  </span>
+                </Tooltip>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-300">Male</span>
+                  <span className="text-gray-100 font-semibold">{selectedDateData.gender_distribution.male}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-300">Female</span>
+                  <span className="text-gray-100 font-semibold">{selectedDateData.gender_distribution.female}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-300">Unknown</span>
+                  <span className="text-gray-100 font-semibold">{selectedDateData.gender_distribution.unknown}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-100">Age Groups</h3>
+                <Tooltip text="Age Groups - Distribution of customers across different age ranges for the selected date">
+                  <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                    ℹ️
+                  </span>
+                </Tooltip>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-300">Babies (0-2)</span>
+                  <span className="text-gray-100 font-semibold">{selectedDateData.age_groups.babies_0_2}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-300">Children (3-16)</span>
+                  <span className="text-gray-100 font-semibold">{selectedDateData.age_groups.children_3_16}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-300">Young Adults (17-30)</span>
+                  <span className="text-gray-100 font-semibold">{selectedDateData.age_groups.young_adults_17_30}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-300">Middle-aged (31-45)</span>
+                  <span className="text-gray-100 font-semibold">{selectedDateData.age_groups.middle_aged_31_45}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-300">Older Adults (45+)</span>
+                  <span className="text-gray-100 font-semibold">{selectedDateData.age_groups.old_adults_45_plus}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Customer Details */}
+          <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className="text-lg font-semibold text-gray-100">
+                Customer Details ({selectedDateData.customer_details.length} customers)
+              </h3>
+              <Tooltip text="Customer Details - Detailed table of individual customers identified on this date with their demographics and visit information">
+                <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                  ℹ️
+                </span>
+              </Tooltip>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-700/30">
+                    <th className="text-left text-gray-400 pb-2">Person ID</th>
+                    <th className="text-left text-gray-400 pb-2">Age</th>
+                    <th className="text-left text-gray-400 pb-2">Gender</th>
+                    <th className="text-left text-gray-400 pb-2">Visits</th>
+                    <th className="text-left text-gray-400 pb-2">Sessions</th>
+                    <th className="text-left text-gray-400 pb-2">Repeat Customer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedDateData.customer_details.slice(0, 10).map((customer, index) => (
+                    <tr key={index} className="border-b border-gray-800/30">
+                      <td className="py-2 text-gray-100 font-medium">{customer.person_id}</td>
+                      <td className="py-2 text-gray-300">{customer.age}</td>
+                      <td className="py-2 text-gray-300">
+                        {customer.gender === 0 ? 'Female' : customer.gender === 1 ? 'Male' : 'Unknown'}
+                      </td>
+                      <td className="py-2 text-gray-300">{customer.daily_visit_count}</td>
+                      <td className="py-2 text-gray-300">{customer.session_names.length}</td>
+                      <td className="py-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          customer.is_repeat_customer 
+                            ? 'bg-green-500/20 text-green-300' 
+                            : 'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {customer.is_repeat_customer ? 'Yes' : 'No'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {selectedDateData.customer_details.length > 10 && (
+                <p className="text-sm text-gray-400 mt-3">
+                  Showing 10 of {selectedDateData.customer_details.length} customers
+                </p>
               )}
             </div>
-            
-            <button
-              onClick={goToNextPage}
-              disabled={currentPage === totalPages - 1}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                currentPage === totalPages - 1
-                  ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed'
-                  : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700/70'
-              }`}
-            >
-              Next 10 Days →
-            </button>
           </div>
-        )}
-        
-        {dailyCustomerData.length === 0 ? (
-          <p className="text-gray-400 text-center py-8">No customer data available for daily analysis.</p>
-        ) : (
-          <div className="space-y-4">
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart 
-                data={currentPageData} 
-                margin={{ 
-                  top: 20, 
-                  right: 30, 
-                  left: 20, 
-                  bottom: 60
-                }}
-                barCategoryGap="10%"
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis 
-                  dataKey="day" 
-                  stroke="#9CA3AF"
-                  fontSize={12}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis stroke="#9CA3AF" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1F2937', 
-                    border: '1px solid #374151',
-                    borderRadius: '8px',
-                    color: '#F9FAFB'
-                  }}
-                  formatter={(value, name) => [
-                    value, 
-                    name === 'male' ? 'Male' : name === 'female' ? 'Female' : 'Unknown'
-                  ]}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Bar dataKey="male" stackId="gender" fill="#3B82F6" name="male" />
-                <Bar dataKey="female" stackId="gender" fill="#EC4899" name="female" />
-                <Bar dataKey="unknown" stackId="gender" fill="#6B7280" name="unknown" />
-              </BarChart>
-            </ResponsiveContainer>
-            
-            {/* Current Page Data Table */}
-            <div className="mt-4">
-              <h4 className="text-sm font-medium text-gray-300 mb-2">Current Page Details</h4>
-              <div className="max-h-64 overflow-y-auto bg-gray-800/20 rounded-lg">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-gray-800/40">
-                    <tr className="border-b border-gray-700/30">
-                      <th className="text-left p-3 text-gray-300">Date</th>
-                      <th className="text-center p-3 text-gray-300">Total</th>
-                      <th className="text-center p-3 text-gray-300">Male</th>
-                      <th className="text-center p-3 text-gray-300">Female</th>
-                      <th className="text-center p-3 text-gray-300">Unknown</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentPageData.map((day, index) => (
-                      <tr key={index} className="border-b border-gray-700/20 hover:bg-gray-800/10">
-                        <td className="p-3 text-gray-300">{day.day}</td>
-                        <td className="p-3 text-center text-gray-100 font-medium">{day.totalCustomers}</td>
-                        <td className="p-3 text-center text-blue-300">{day.male}</td>
-                        <td className="p-3 text-center text-pink-300">{day.female}</td>
-                        <td className="p-3 text-center text-gray-400">{day.unknown}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        </div>
+      )}
+
+      {/* Weekly Analytics */}
+      <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📊</span>
+            <h3 className="text-lg font-semibold text-gray-100">Weekly Analytics</h3>
+            <span className="text-sm text-gray-400">(Last 7 days)</span>
+            <Tooltip text="Weekly Analytics - Aggregated analytics data for the last 7 days including today, with daily breakdowns and trends">
+              <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                ℹ️
+              </span>
+            </Tooltip>
           </div>
-        )}
+          <button
+            onClick={handleWeeklyToggle}
+            disabled={weeklyLoading}
+            className="flex items-center gap-2 px-3 py-1 bg-gray-800/40 border border-gray-700/30 rounded-lg hover:bg-gray-800/60 transition-colors text-sm disabled:opacity-50"
+          >
+            {weeklyLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                <span className="text-gray-300">Loading...</span>
+              </>
+            ) : (
+              <>
+                <span className="text-gray-300">{showWeeklyAnalytics ? 'Hide' : 'Show'} Weekly Data</span>
+                <span className="text-gray-400">{showWeeklyAnalytics ? '▼' : '▶'}</span>
+              </>
+            )}
+          </button>
+        </div>
         
-        {/* Summary Stats */}
-        {dailyCustomerData.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-700/30">
-            {/* Current 10-Day Period Summary */}
-            <div className="mb-6">
-              <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                Current 10-Day Period Summary
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">Days in Period</p>
-                  <p className="text-lg font-semibold text-gray-100">{currentPageData.length}</p>
-                </div>
-                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">Total Customers</p>
-                  <p className="text-lg font-semibold text-gray-100">
-                    {currentPageData.reduce((sum, day) => sum + day.totalCustomers, 0)}
-                  </p>
-                </div>
-                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">Avg Daily</p>
-                  <p className="text-lg font-semibold text-gray-100">
-                    {currentPageData.length > 0 ? Math.round(currentPageData.reduce((sum, day) => sum + day.totalCustomers, 0) / currentPageData.length) : 0}
-                  </p>
-                </div>
-                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">Peak Day</p>
-                  <p className="text-lg font-semibold text-gray-100">
-                    {currentPageData.length > 0 ? Math.max(...currentPageData.map(day => day.totalCustomers)) : 0}
-                  </p>
+        {showWeeklyAnalytics && weeklyData && (
+          <div className="space-y-6">
+            {/* Weekly Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-400">{weeklyData.total_unique_customers}</div>
+                  <div className="text-sm text-gray-400">Total Unique Customers</div>
                 </div>
               </div>
-              
-              {/* Gender Breakdown for Current Period */}
-              <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
-                <div className="text-center p-2 bg-blue-500/10 rounded-lg">
-                  <p className="text-blue-300 font-medium">
-                    {currentPageData.reduce((sum, day) => sum + day.male, 0)} Male
-                  </p>
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-400">{weeklyData.total_visits}</div>
+                  <div className="text-sm text-gray-400">Total Visits</div>
                 </div>
-                <div className="text-center p-2 bg-pink-500/10 rounded-lg">
-                  <p className="text-pink-300 font-medium">
-                    {currentPageData.reduce((sum, day) => sum + day.female, 0)} Female
-                  </p>
+              </div>
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-400">{weeklyData.total_faces_detected}</div>
+                  <div className="text-sm text-gray-400">Faces Detected</div>
                 </div>
-                <div className="text-center p-2 bg-gray-500/10 rounded-lg">
-                  <p className="text-gray-300 font-medium">
-                    {currentPageData.reduce((sum, day) => sum + day.unknown, 0)} Unknown
-                  </p>
+              </div>
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-400">
+                    {weeklyData.total_faces_detected > 0 
+                      ? Math.round((weeklyData.total_quality_passed / weeklyData.total_faces_detected) * 100) 
+                      : 0}%
+                  </div>
+                  <div className="text-sm text-gray-400">Quality Pass Rate</div>
                 </div>
               </div>
             </div>
-            
-            {/* Overall Statistics */}
-            <div className="pt-4 border-t border-gray-700/20">
-              <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                Overall Statistics (All Time)
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">Total Days</p>
-                  <p className="text-lg font-semibold text-gray-100">{dailyCustomerData.length}</p>
-                </div>
-                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">Total Customers</p>
-                  <p className="text-lg font-semibold text-gray-100">
-                    {dailyCustomerData.reduce((sum, day) => sum + day.totalCustomers, 0)}
-                  </p>
-                </div>
-                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">Overall Avg Daily</p>
-                  <p className="text-lg font-semibold text-gray-100">
-                    {Math.round(dailyCustomerData.reduce((sum, day) => sum + day.totalCustomers, 0) / dailyCustomerData.length)}
-                  </p>
-                </div>
-                <div className="text-center p-3 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">All-Time Peak</p>
-                  <p className="text-lg font-semibold text-gray-100">
-                    {Math.max(...dailyCustomerData.map(day => day.totalCustomers))}
-                  </p>
+
+            {/* Weekly Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Weekly Gender Distribution */}
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <h4 className="text-md font-semibold text-gray-100 mb-4">Gender Distribution</h4>
+                <div className="h-60">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Male', value: weeklyData.gender_distribution?.male || 0, color: '#3B82F6' },
+                          { name: 'Female', value: weeklyData.gender_distribution?.female || 0, color: '#EC4899' },
+                          { name: 'Unknown', value: weeklyData.gender_distribution?.unknown || 0, color: '#6B7280' }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={60}
+                        innerRadius={30}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {[
+                          { name: 'Male', value: weeklyData.gender_distribution?.male || 0, color: '#3B82F6' },
+                          { name: 'Female', value: weeklyData.gender_distribution?.female || 0, color: '#EC4899' },
+                          { name: 'Unknown', value: weeklyData.gender_distribution?.unknown || 0, color: '#6B7280' }
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1F2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F9FAFB'
+                        }}
+                        labelStyle={{ color: '#F9FAFB' }}
+                        itemStyle={{ color: '#F9FAFB' }}
+                      />
+                      <Legend wrapperStyle={{ color: '#F9FAFB', fontSize: '12px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
-              
-              {/* Overall Gender Breakdown */}
-              <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
-                <div className="text-center p-2 bg-blue-500/10 rounded-lg">
-                  <p className="text-blue-300 font-medium">
-                    {dailyCustomerData.reduce((sum, day) => sum + day.male, 0)} Total Male
-                  </p>
+
+              {/* Weekly Daily Customer Count Bar Chart */}
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <h4 className="text-md font-semibold text-gray-100 mb-4">Daily Customer Count</h4>
+                <div className="h-60">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={weeklyData.daily_breakdown.map(day => ({
+                        date: day.date,
+                        customers: day.unique_customers || 0,
+                        dayLabel: new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })
+                      }))}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis 
+                        dataKey="dayLabel" 
+                        stroke="#9CA3AF"
+                        fontSize={10}
+                        tick={{ fill: '#9CA3AF' }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={60}
+                      />
+                      <YAxis 
+                        stroke="#9CA3AF"
+                        fontSize={10}
+                        tick={{ fill: '#9CA3AF' }}
+                      />
+                      <ChartTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1F2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F9FAFB'
+                        }}
+                        labelStyle={{ color: '#F9FAFB' }}
+                        itemStyle={{ color: '#F9FAFB' }}
+                        labelFormatter={(label, payload) => {
+                          if (payload && payload[0]) {
+                            return new Date(payload[0].payload.date).toLocaleDateString('en-US', { 
+                              weekday: 'long', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            });
+                          }
+                          return label;
+                        }}
+                      />
+                      <Bar dataKey="customers" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className="text-center p-2 bg-pink-500/10 rounded-lg">
-                  <p className="text-pink-300 font-medium">
-                    {dailyCustomerData.reduce((sum, day) => sum + day.female, 0)} Total Female
-                  </p>
-                </div>
-                <div className="text-center p-2 bg-gray-500/10 rounded-lg">
-                  <p className="text-gray-300 font-medium">
-                    {dailyCustomerData.reduce((sum, day) => sum + day.unknown, 0)} Total Unknown
-                  </p>
+              </div>
+
+              {/* Weekly Daily Trend Line Chart */}
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <h4 className="text-md font-semibold text-gray-100 mb-4">Daily Trend</h4>
+                <div className="h-60">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={weeklyData.daily_breakdown}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="#9CA3AF"
+                        fontSize={10}
+                        tick={{ fill: '#9CA3AF' }}
+                        tickFormatter={(date) => new Date(date).getDate()}
+                      />
+                      <YAxis 
+                        stroke="#9CA3AF"
+                        fontSize={10}
+                        tick={{ fill: '#9CA3AF' }}
+                      />
+                      <ChartTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1F2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F9FAFB'
+                        }}
+                        labelStyle={{ color: '#F9FAFB' }}
+                        itemStyle={{ color: '#F9FAFB' }}
+                      />
+                      <Line type="monotone" dataKey="unique_customers" stroke="#3B82F6" strokeWidth={2} />
+                      <Line type="monotone" dataKey="total_visits" stroke="#10B981" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
@@ -847,70 +1339,463 @@ const Analytics = () => {
         )}
       </div>
 
-      {/* Quality Metrics Details */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">Quality Overview</h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-300">Detection Rate</span>
-                <span className="text-gray-100 font-semibold">{qualityMetrics?.detection_rate_percent}%</span>
-              </div>
-              <div className="w-full bg-gray-800 rounded-full h-2">
-                <div 
-                  className="bg-blue-400 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${qualityMetrics?.detection_rate_percent || 0}%` }}
-                ></div>
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-300">Quality Pass Rate</span>
-                <span className="text-gray-100 font-semibold">{qualityMetrics?.quality_pass_rate_percent}%</span>
-              </div>
-              <div className="w-full bg-gray-800 rounded-full h-2">
-                <div 
-                  className="bg-green-400 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${qualityMetrics?.quality_pass_rate_percent || 0}%` }}
-                ></div>
-              </div>
-            </div>
+      {/* Monthly Analytics */}
+      <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📅</span>
+            <h3 className="text-lg font-semibold text-gray-100">Monthly Analytics</h3>
+            <span className="text-sm text-gray-400">(Up to 3 months back)</span>
+            <Tooltip text="Monthly Analytics - Comprehensive monthly data aggregation with ability to navigate up to 3 months back, showing daily breakdowns and monthly summaries">
+              <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                ℹ️
+              </span>
+            </Tooltip>
           </div>
+          <button
+            onClick={handleMonthlyToggle}
+            disabled={monthlyLoading}
+            className="flex items-center gap-2 px-3 py-1 bg-gray-800/40 border border-gray-700/30 rounded-lg hover:bg-gray-800/60 transition-colors text-sm disabled:opacity-50"
+          >
+            {monthlyLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                <span className="text-gray-300">Loading...</span>
+              </>
+            ) : (
+              <>
+                <span className="text-gray-300">{showMonthlyAnalytics ? 'Hide' : 'Show'} Monthly Data</span>
+                <span className="text-gray-400">{showMonthlyAnalytics ? '▼' : '▶'}</span>
+              </>
+            )}
+          </button>
         </div>
+        
+        {showMonthlyAnalytics && (
+          <div className="space-y-6">
+            {/* Month Selector */}
+            {availableMonths.length > 0 && (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-400">Select Month:</span>
+                <div className="flex gap-2 flex-wrap">
+                  {availableMonths.map((month, index) => (
+                    <button
+                      key={month.value}
+                      onClick={() => handleMonthChange(month.value)}
+                      disabled={monthlyLoading}
+                      className={`px-3 py-2 rounded-lg text-sm transition-colors disabled:opacity-50 ${
+                        selectedMonth === month.value
+                          ? 'bg-blue-600/40 border border-blue-500/30 text-blue-300'
+                          : 'bg-gray-800/40 border border-gray-700/30 text-gray-300 hover:bg-gray-800/60'
+                      }`}
+                    >
+                      {month.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">System Performance</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Total Sessions</span>
-              <span className="text-gray-100 font-semibold">{systemStats?.total_sessions?.toLocaleString() || 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Average Faces/Session</span>
-              <span className="text-gray-100 font-semibold">
-                {systemStats?.total_faces && systemStats?.total_sessions 
-                  ? Math.round(systemStats.total_faces / systemStats.total_sessions) 
-                  : 0}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">Success Rate</span>
-              <span className="text-gray-100 font-semibold">
-                {qualityMetrics?.quality_pass_rate_percent && qualityMetrics?.detection_rate_percent
-                  ? Math.round((qualityMetrics.quality_pass_rate_percent * qualityMetrics.detection_rate_percent) / 100)
-                  : 0}%
-              </span>
-            </div>
+            {/* Monthly Data Display */}
+            {monthlyData && (
+              <div>
+                {monthlyData.hasData ? (
+                  <div className="space-y-6">
+                    {/* Monthly Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-400">{monthlyData.total_unique_customers}</div>
+                          <div className="text-sm text-gray-400">Total Unique Customers</div>
+                        </div>
+                      </div>
+                      <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-400">{monthlyData.total_visits}</div>
+                          <div className="text-sm text-gray-400">Total Visits</div>
+                        </div>
+                      </div>
+                      <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-purple-400">{monthlyData.total_faces_detected}</div>
+                          <div className="text-sm text-gray-400">Faces Detected</div>
+                        </div>
+                      </div>
+                      <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-orange-400">
+                            {monthlyData.total_faces_detected > 0 
+                              ? Math.round((monthlyData.total_quality_passed / monthlyData.total_faces_detected) * 100) 
+                              : 0}%
+                          </div>
+                          <div className="text-sm text-gray-400">Quality Pass Rate</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Monthly Charts */}
+                    <div className="space-y-6">
+                      {/* Monthly Daily Customer Count Bar Chart */}
+                      <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                        <h4 className="text-md font-semibold text-gray-100 mb-4">Daily Customer Count - {monthlyData.monthName}</h4>
+                        <div className="h-80">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={monthlyData.daily_breakdown.map(day => ({
+                                date: day.date,
+                                customers: day.unique_customers || 0,
+                                dayLabel: new Date(day.date).getDate()
+                              }))}
+                              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                              <XAxis 
+                                dataKey="dayLabel" 
+                                stroke="#9CA3AF"
+                                fontSize={10}
+                                tick={{ fill: '#9CA3AF' }}
+                                interval={Math.ceil(monthlyData.daily_breakdown.length / 10)} // Show ~10 labels for better readability
+                                domain={['dataMin', 'dataMax']}
+                              />
+                              <YAxis 
+                                stroke="#9CA3AF"
+                                fontSize={10}
+                                tick={{ fill: '#9CA3AF' }}
+                              />
+                              <ChartTooltip 
+                                contentStyle={{ 
+                                  backgroundColor: '#1F2937', 
+                                  border: '1px solid #374151',
+                                  borderRadius: '8px',
+                                  color: '#F9FAFB'
+                                }}
+                                labelStyle={{ color: '#F9FAFB' }}
+                                itemStyle={{ color: '#F9FAFB' }}
+                                labelFormatter={(label, payload) => {
+                                  if (payload && payload[0]) {
+                                    return new Date(payload[0].payload.date).toLocaleDateString('en-US', { 
+                                      weekday: 'long', 
+                                      month: 'long', 
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    });
+                                  }
+                                  return `Day ${label}`;
+                                }}
+                              />
+                              <Bar 
+                                dataKey="customers" 
+                                fill="#3B82F6" 
+                                radius={[2, 2, 0, 0]}
+                                stroke="#2563EB"
+                                strokeWidth={1}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      {/* Secondary Charts Row */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Monthly Gender Distribution */}
+                        <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                          <h4 className="text-md font-semibold text-gray-100 mb-4">Gender Distribution</h4>
+                          <div className="h-60">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    { name: 'Male', value: monthlyData.gender_distribution?.male || 0, color: '#3B82F6' },
+                                    { name: 'Female', value: monthlyData.gender_distribution?.female || 0, color: '#EC4899' },
+                                    { name: 'Unknown', value: monthlyData.gender_distribution?.unknown || 0, color: '#6B7280' }
+                                  ]}
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={60}
+                                  innerRadius={30}
+                                  paddingAngle={5}
+                                  dataKey="value"
+                                >
+                                  {[
+                                    { name: 'Male', value: monthlyData.gender_distribution?.male || 0, color: '#3B82F6' },
+                                    { name: 'Female', value: monthlyData.gender_distribution?.female || 0, color: '#EC4899' },
+                                    { name: 'Unknown', value: monthlyData.gender_distribution?.unknown || 0, color: '#6B7280' }
+                                  ].map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                                </Pie>
+                                <ChartTooltip 
+                                  contentStyle={{ 
+                                    backgroundColor: '#1F2937', 
+                                    border: '1px solid #374151',
+                                    borderRadius: '8px',
+                                    color: '#F9FAFB'
+                                  }}
+                                  labelStyle={{ color: '#F9FAFB' }}
+                                  itemStyle={{ color: '#F9FAFB' }}
+                                />
+                                <Legend wrapperStyle={{ color: '#F9FAFB', fontSize: '12px' }} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+
+                        {/* Monthly Age Distribution */}
+                        <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                          <h4 className="text-md font-semibold text-gray-100 mb-4">Age Distribution</h4>
+                          <div className="h-60">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={[
+                                  { name: 'Babies', value: monthlyData.age_groups?.babies_0_2 || 0 },
+                                  { name: 'Children', value: monthlyData.age_groups?.children_3_16 || 0 },
+                                  { name: 'Young', value: monthlyData.age_groups?.young_adults_17_30 || 0 },
+                                  { name: 'Middle', value: monthlyData.age_groups?.middle_aged_31_45 || 0 },
+                                  { name: 'Older', value: monthlyData.age_groups?.old_adults_45_plus || 0 }
+                                ]}
+                                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                <XAxis 
+                                  dataKey="name" 
+                                  stroke="#9CA3AF"
+                                  fontSize={10}
+                                  tick={{ fill: '#9CA3AF' }}
+                                />
+                                <YAxis 
+                                  stroke="#9CA3AF"
+                                  fontSize={10}
+                                  tick={{ fill: '#9CA3AF' }}
+                                />
+                                <ChartTooltip 
+                                  contentStyle={{ 
+                                    backgroundColor: '#1F2937', 
+                                    border: '1px solid #374151',
+                                    borderRadius: '8px',
+                                    color: '#F9FAFB'
+                                  }}
+                                  labelStyle={{ color: '#F9FAFB' }}
+                                  itemStyle={{ color: '#F9FAFB' }}
+                                />
+                                <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <span className="text-4xl text-gray-600 mb-3 block opacity-50">📅</span>
+                    <h4 className="text-lg font-semibold text-gray-100 mb-2">No Data Found</h4>
+                    <p className="text-gray-400">No analytics data available for {monthlyData.monthName}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Business Analytics Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Calendar />
-        <BusinessAnalyticsDetails />
+      {/* Overall Analytics */}
+      <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📈</span>
+            <h3 className="text-lg font-semibold text-gray-100">Overall Analytics</h3>
+            <span className="text-sm text-gray-400">(System-wide statistics)</span>
+            <Tooltip text="Overall Analytics - System-wide performance metrics and statistics aggregated across all dates, sessions, and stores">
+              <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                ℹ️
+              </span>
+            </Tooltip>
+          </div>
+          <button
+            onClick={handleOverallToggle}
+            disabled={!showOverallRaw && !overallAnalytics && loading}
+            className="flex items-center gap-2 px-3 py-1 bg-gray-800/40 border border-gray-700/30 rounded-lg hover:bg-gray-800/60 transition-colors text-sm disabled:opacity-50"
+          >
+            {!showOverallRaw && !overallAnalytics ? (
+              <>
+                <span className="text-gray-300">Load Analytics</span>
+                <span className="text-gray-400">▶</span>
+              </>
+            ) : showOverallRaw ? (
+              <>
+                <span className="text-gray-300">Hide Data</span>
+                <span className="text-gray-400">▼</span>
+              </>
+            ) : (
+              <>
+                <span className="text-gray-300">Show Data</span>
+                <span className="text-gray-400">▶</span>
+              </>
+            )}
+          </button>
+        </div>
+        
+        {showOverallRaw && overallAnalytics && (
+          <div className="space-y-6">
+            {/* Key Metrics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-400">{overallAnalytics.total_faces?.toLocaleString() || 0}</div>
+                  <div className="text-sm text-gray-400">Total Faces</div>
+                </div>
+              </div>
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-400">{overallAnalytics.total_sessions?.toLocaleString() || 0}</div>
+                  <div className="text-sm text-gray-400">Total Sessions</div>
+                </div>
+              </div>
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-400">{overallAnalytics.unique_visitors?.toLocaleString() || 0}</div>
+                  <div className="text-sm text-gray-400">Unique Visitors</div>
+                </div>
+              </div>
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-400">
+                    {overallAnalytics.quality_pass_rate ? `${overallAnalytics.quality_pass_rate}%` : '0%'}
+                  </div>
+                  <div className="text-sm text-gray-400">Quality Pass Rate</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Detailed Metrics */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* System Performance */}
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <h4 className="text-md font-semibold text-gray-100 mb-4 flex items-center gap-2">
+                  <span className="text-lg">⚡</span>
+                  System Performance
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-300">Detection Rate</span>
+                    <span className="text-gray-100 font-medium">
+                      {overallAnalytics.detection_rate ? `${overallAnalytics.detection_rate}%` : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-300">Quality Pass Rate</span>
+                    <span className="text-gray-100 font-medium">
+                      {overallAnalytics.quality_pass_rate ? `${overallAnalytics.quality_pass_rate}%` : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-300">Last Updated</span>
+                    <span className="text-gray-100 font-medium">
+                      {overallAnalytics.last_updated ? new Date(overallAnalytics.last_updated).toLocaleString() : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rejection Reasons */}
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <h4 className="text-md font-semibold text-gray-100 mb-4 flex items-center gap-2">
+                  <span className="text-lg">🚫</span>
+                  Rejection Reasons
+                </h4>
+                <div className="space-y-3">
+                  {overallAnalytics.rejection_reasons && Object.entries(overallAnalytics.rejection_reasons).map(([reason, count]) => (
+                    <div key={reason} className="flex items-center justify-between">
+                      <span className="text-gray-300 capitalize">{reason.replace('_', ' ')}</span>
+                      <span className="text-gray-100 font-medium">{count?.toLocaleString() || 0}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Raw Data Section */}
+            <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-md font-semibold text-gray-100 flex items-center gap-2">
+                  <span className="text-lg">🔍</span>
+                  Raw Data
+                </h4>
+                <span className="text-xs text-gray-500">JSON Format</span>
+              </div>
+              <div className="bg-gray-900/40 rounded-lg p-3 max-h-96 overflow-y-auto">
+                <pre className="text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap">
+                  {JSON.stringify(overallAnalytics, null, 2)}
+                </pre>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showOverallRaw && !overallAnalytics && (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mx-auto mb-3"></div>
+            <p className="text-gray-400">Loading overall analytics...</p>
+          </div>
+        )}
+      </div>
+
+      {/* Raw Business Analytics */}
+      <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📋</span>
+            <h3 className="text-lg font-semibold text-gray-100">Business Analytics</h3>
+            <span className="text-sm text-gray-400">(Daily data for {selectedDate})</span>
+            <Tooltip text="Business Analytics - Raw JSON data from the API containing detailed business metrics and customer information for the selected date">
+              <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                ℹ️
+              </span>
+            </Tooltip>
+          </div>
+          <button
+            onClick={() => setShowBusinessRaw(!showBusinessRaw)}
+            className="flex items-center gap-2 px-3 py-1 bg-gray-800/40 border border-gray-700/30 rounded-lg hover:bg-gray-800/60 transition-colors text-sm"
+          >
+            <span className="text-gray-300">{showBusinessRaw ? 'Hide' : 'Show'} Raw Data</span>
+            <span className="text-gray-400">{showBusinessRaw ? '▼' : '▶'}</span>
+          </button>
+        </div>
+        
+        {showBusinessRaw && (
+          <div className="space-y-4">
+            {selectedDateData ? (
+              <div className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-md font-semibold text-gray-100 flex items-center gap-2">
+                    <span className="text-lg">🔍</span>
+                    Raw Data for {selectedDate}
+                  </h4>
+                  <span className="text-xs text-gray-500">JSON Format</span>
+                </div>
+                <div className="bg-gray-900/40 rounded-lg p-3 max-h-96 overflow-y-auto">
+                  <pre className="text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap">
+                    {JSON.stringify(selectedDateData, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            ) : dateLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mx-auto mb-3"></div>
+                <p className="text-gray-400">Loading business analytics for {selectedDate}...</p>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <span className="text-4xl text-gray-600 mb-3 block opacity-50">📋</span>
+                <h4 className="text-lg font-semibold text-gray-100 mb-2">No Data Available</h4>
+                <p className="text-gray-400">No business analytics data found for {selectedDate}</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  This could mean no sessions were processed on this date.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

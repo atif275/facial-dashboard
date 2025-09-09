@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { getTimeAgo } from '../utils/timeUtils';
+import Tooltip from '../components/Tooltip';
 
 const SessionDetails = () => {
   const { sessionName } = useParams();
@@ -116,9 +117,16 @@ const SessionDetails = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Total Faces</p>
-              <p className="text-3xl font-bold text-gray-100">{session.face_features?.length || 0}</p>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-400">Total Faces</p>
+                <Tooltip text="Total Faces - The total number of face detections identified in this session, including all quality levels">
+                  <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                    ℹ️
+                  </span>
+                </Tooltip>
+              </div>
+              <p className="text-3xl font-bold text-gray-100">{session.combined_metrics?.faces_detected || 0}</p>
             </div>
             <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
               <span className="text-blue-300 text-xl opacity-80">👥</span>
@@ -128,8 +136,15 @@ const SessionDetails = () => {
 
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Quality Passed</p>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-400">Quality Passed</p>
+                <Tooltip text="Quality Passed - Number of detected faces that met the quality standards for recognition and processing">
+                  <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                    ℹ️
+                  </span>
+                </Tooltip>
+              </div>
               <p className="text-3xl font-bold text-gray-100">{session.combined_metrics?.quality_passed || 0}</p>
             </div>
             <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
@@ -140,8 +155,15 @@ const SessionDetails = () => {
 
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Detection Rate</p>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-400">Detection Rate</p>
+                <Tooltip text="Detection Rate - Percentage of processed frames that contained detectable faces. Formula: (Faces Detected ÷ Total Frames Processed) × 100">
+                  <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                    ℹ️
+                  </span>
+                </Tooltip>
+              </div>
               <p className="text-3xl font-bold text-gray-100">
                 {session.combined_metrics?.faces_detected && session.combined_metrics?.total_frames_processed
                   ? Math.round((session.combined_metrics.faces_detected / session.combined_metrics.total_frames_processed) * 100)
@@ -156,8 +178,15 @@ const SessionDetails = () => {
 
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Quality Rate</p>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-400">Quality Rate</p>
+                <Tooltip text="Quality Rate - Percentage of detected faces that passed quality standards and can be used for recognition. Formula: (Quality Passed ÷ Faces Detected) × 100">
+                  <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                    ℹ️
+                  </span>
+                </Tooltip>
+              </div>
               <p className="text-3xl font-bold text-gray-100">
                 {session.combined_metrics?.quality_passed && session.combined_metrics?.faces_detected
                   ? Math.round((session.combined_metrics.quality_passed / session.combined_metrics.faces_detected) * 100)
@@ -174,7 +203,14 @@ const SessionDetails = () => {
       {/* Combined Metrics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">Combined Metrics</h3>
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="text-lg font-semibold text-gray-100">Combined Metrics</h3>
+            <Tooltip text="Combined Metrics - Aggregated processing statistics for all camera views in this session">
+              <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                ℹ️
+              </span>
+            </Tooltip>
+          </div>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-gray-300">Total Frames Processed</span>
@@ -192,11 +228,36 @@ const SessionDetails = () => {
               <span className="text-gray-300">Features Extracted</span>
               <span className="text-gray-100 font-semibold">{session.combined_metrics?.features_extracted || 0}</span>
             </div>
+            {session.person_id && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-300">Assigned Person</span>
+                  <Tooltip text="Assigned Person - The person ID associated with this session, if identified">
+                    <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                      ℹ️
+                    </span>
+                  </Tooltip>
+                </div>
+                <Link 
+                  to={`/people/${encodeURIComponent(session.person_id)}`}
+                  className="text-purple-300 hover:text-purple-200 transition-colors font-semibold"
+                >
+                  {session.person_id}
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">Quality Metrics</h3>
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="text-lg font-semibold text-gray-100">Quality Metrics</h3>
+            <Tooltip text="Quality Metrics - Performance indicators showing detection accuracy and quality pass rates with visual progress bars">
+              <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                ℹ️
+              </span>
+            </Tooltip>
+          </div>
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -246,7 +307,14 @@ const SessionDetails = () => {
       {/* View Statistics */}
       {session.view_statistics && Object.keys(session.view_statistics).length > 0 && (
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">View Statistics</h3>
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="text-lg font-semibold text-gray-100">View Statistics</h3>
+            <Tooltip text="View Statistics - Individual camera view performance metrics including processing times, frame counts, and detection rates">
+              <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                ℹ️
+              </span>
+            </Tooltip>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Object.entries(session.view_statistics).map(([viewName, viewData]) => (
               <div key={viewName} className="bg-gray-800/20 border border-gray-700/20 rounded-xl p-4">
@@ -259,7 +327,7 @@ const SessionDetails = () => {
                 <div className="mb-3 p-2 bg-gray-700/20 rounded-lg">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-400">Processing Time</span>
-                    <span className="text-gray-100">{viewData.processing_time || 0}ms</span>
+                    <span className="text-gray-100">{(viewData.processing_time || 0).toFixed(2)} s </span>
                   </div>
                 </div>
                 
@@ -512,7 +580,9 @@ const SessionDetails = () => {
             {Object.entries(session.session_info).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between p-3 rounded-xl bg-gray-800/20 border border-gray-700/20">
                 <span className="text-gray-400 text-sm capitalize">{key.replace('_', ' ')}</span>
-                <span className="text-gray-100 text-sm font-medium">{String(value)}</span>
+                <span className="text-gray-100 text-sm font-medium">
+                  {key === 'processing_time' ? `${Number(value).toFixed(2)}s` : String(value)}
+                </span>
               </div>
             ))}
           </div>

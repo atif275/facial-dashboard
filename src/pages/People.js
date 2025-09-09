@@ -102,7 +102,7 @@ const People = () => {
                 <div className="text-right">
                   <div className="text-sm text-gray-400">Faces</div>
                   <div className="text-lg font-semibold text-gray-100">
-                    {person.face_count || 0}
+                    {person.total_faces || 0}
                   </div>
                 </div>
               </div>
@@ -122,7 +122,7 @@ const People = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="opacity-60">🎯</span>
-                  <span>{person.face_count || 0} unique faces</span>
+                  <span>{person.total_visits || 0} visits</span>
                 </div>
               </div>
 

@@ -3,7 +3,7 @@
     {
       "id": "store_1",
       "name": "AI HOUSE",
-      "api_endpoint": "https://rajstoretest.35.227.145.87.nip.io/api",
+      "api_endpoint": "https://rajstoremain.44.210.19.106.nip.io/api",
       "description": "Primary facial registration store",
       "location": "Main Office",
       "status": "inactive"
@@ -11,7 +11,7 @@
     {
       "id": "store_2", 
       "name": "Raj Store",
-      "api_endpoint": "https://rajstoremain.35.227.145.87.nip.io/api",
+      "api_endpoint": "https://rajstoremain.44.210.19.106.nip.io/api",
       "description": "Secondary facial registration store",
       "location": "Pump Store",
       "status": "active"
@@ -19,7 +19,7 @@
     {
       "id": "store_3",
       "name": "Nitin Store",
-      "api_endpoint": "https://nitinstoremain.35.227.145.87.nip.io/api",
+      "api_endpoint": "https://nitinstoremain.44.210.19.106.nip.io/api",
       "description": "Primary facial registration store",
       "location": "Siattle Lab",
       "status": "active"
@@ -29,4 +29,6 @@
   "connection_timeout": 5000,
   "retry_attempts": 3,
   "health_check_interval": 30000
+  
 }
+

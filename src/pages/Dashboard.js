@@ -3,12 +3,11 @@ import { useStore } from '../context/StoreContext';
 import MetricCard from '../components/MetricCard';
 import LiveSessions from '../components/LiveSessions';
 import RecentVisitors from '../components/RecentVisitors';
+import Tooltip from '../components/Tooltip';
 
 const Dashboard = () => {
-  const { getSystemStats, getQualityMetrics, getDailyMetrics, connectionStatus, loading: storeLoading, currentStore } = useStore();
-  const [systemStats, setSystemStats] = useState(null);
-  const [qualityMetrics, setQualityMetrics] = useState(null);
-  const [dailyMetrics, setDailyMetrics] = useState(null);
+  const { getOverallAnalytics, connectionStatus, loading: storeLoading, currentStore } = useStore();
+  const [overallAnalytics, setOverallAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,32 +20,19 @@ const Dashboard = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [stats, quality, daily] = await Promise.all([
-        getSystemStats(),
-        getQualityMetrics(),
-        getDailyMetrics()
-      ]);
+      const response = await getOverallAnalytics();
       
-      setSystemStats(stats.system_stats);
-      setQualityMetrics(quality.quality_metrics);
-      setDailyMetrics(daily.daily_metrics);
+      setOverallAnalytics(response.overall_analytics);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       // Set default values if API fails
-      setSystemStats({
+      setOverallAnalytics({
         total_faces: 0,
         total_sessions: 0,
-        unique_person_ids: 0
-      });
-      setQualityMetrics({
-        quality_pass_rate_percent: 0,
-        detection_rate_percent: 0,
+        unique_visitors: 0,
+        quality_pass_rate: 0,
+        detection_rate: 0,
         rejection_reasons: {}
-      });
-      setDailyMetrics({
-        daily_face_counts: [],
-        daily_session_counts: [],
-        daily_quality_pass_counts: []
       });
     } finally {
       setLoading(false);
@@ -55,36 +41,40 @@ const Dashboard = () => {
 
   const metrics = [
     {
-      title: 'Total Faces',
-      value: systemStats?.total_faces || 0,
+      title: 'TFE\'s',
+      value: overallAnalytics?.total_faces || 0,
       icon: '👥',
       color: 'gray',
       change: '+12%',
-      changeType: 'positive'
+      changeType: 'positive',
+      tooltip: 'Total Face Embeddings - The total number of unique face vectors stored in the system database'
     },
     {
-      title: 'Active Sessions',
-      value: systemStats?.total_sessions || 0,
+      title: 'Total Sessions',
+      value: overallAnalytics?.total_sessions || 0,
       icon: '📹',
       color: 'gray',
       change: '+3',
-      changeType: 'positive'
+      changeType: 'positive',
+      tooltip: 'Total Sessions - The complete count of facial recognition sessions/recordings processed by the system'
     },
     {
       title: 'Unique Visitors',
-      value: systemStats?.unique_person_ids || 0,
+      value: overallAnalytics?.unique_visitors || 0,
       icon: '👤',
       color: 'gray',
       change: '+8%',
-      changeType: 'positive'
+      changeType: 'positive',
+      tooltip: 'Unique Visitors - The number of distinct individuals identified and registered in the facial recognition system'
     },
     {
-      title: 'Quality Score',
-      value: `${qualityMetrics?.quality_pass_rate_percent || 0}%`,
+      title: 'Quality Pass Rate',
+      value: `${overallAnalytics?.quality_pass_rate || 0}%`,
       icon: '📊',
       color: 'gray',
       change: '+2%',
-      changeType: 'positive'
+      changeType: 'positive',
+      tooltip: 'Quality Pass Rate - Percentage of face detections that meet the minimum quality standards for recognition'
     }
   ];
 
@@ -141,8 +131,8 @@ const Dashboard = () => {
           <p className="text-gray-400">System overview and real-time metrics</p>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-400">
-          <span className="opacity-60">●</span>
-          <span>Live updates enabled</span>
+          <span className="opacity-60">📊</span>
+          <span>Real-time analytics</span>
         </div>
       </div>
 
@@ -155,7 +145,7 @@ const Dashboard = () => {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Live Sessions - Takes 2 columns */}
+        {/* Recent Sessions - Takes 2 columns */}
         <div className="lg:col-span-2">
           <LiveSessions />
         </div>
@@ -170,41 +160,69 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-100">Quality Overview</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-100">Quality Overview</h3>
+              <Tooltip text="Quality Overview - Real-time analytics showing face detection accuracy and quality metrics for the recognition system">
+                <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                  ℹ️
+                </span>
+              </Tooltip>
+            </div>
             <span className="opacity-60">📈</span>
           </div>
-          {qualityMetrics && (
+          {overallAnalytics && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-300">Detection Rate</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-300">Detection Rate</span>
+                  <Tooltip text="Detection Rate - Percentage of successful face detections from all processed frames or images">
+                    <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                      ℹ️
+                    </span>
+                  </Tooltip>
+                </div>
                 <span className="text-gray-100 font-semibold">
-                  {qualityMetrics.detection_rate_percent}%
+                  {overallAnalytics.detection_rate}%
                 </span>
               </div>
               <div className="w-full bg-gray-800 rounded-full h-2">
                 <div 
                   className="bg-blue-400 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${qualityMetrics.detection_rate_percent}%` }}
+                  style={{ width: `${overallAnalytics.detection_rate}%` }}
                 ></div>
               </div>
               
               <div className="flex items-center justify-between">
-                <span className="text-gray-300">Quality Pass Rate</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-300">Quality Pass Rate</span>
+                  <Tooltip text="Quality Pass Rate - Percentage of detected faces that meet the quality threshold for reliable recognition">
+                    <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                      ℹ️
+                    </span>
+                  </Tooltip>
+                </div>
                 <span className="text-gray-100 font-semibold">
-                  {qualityMetrics.quality_pass_rate_percent}%
+                  {overallAnalytics.quality_pass_rate}%
                 </span>
               </div>
               <div className="w-full bg-gray-800 rounded-full h-2">
                 <div 
                   className="bg-green-400 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${qualityMetrics.quality_pass_rate_percent}%` }}
+                  style={{ width: `${overallAnalytics.quality_pass_rate}%` }}
                 ></div>
               </div>
 
               <div className="pt-4 border-t border-gray-700/30">
-                <h4 className="text-sm font-medium text-gray-300 mb-3">Rejection Reasons</h4>
+                <div className="flex items-center gap-2 mb-3">
+                  <h4 className="text-sm font-medium text-gray-300">Rejection Reasons</h4>
+                  <Tooltip text="Rejection Reasons - Breakdown of why certain face detections were rejected during quality assessment">
+                    <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                      ℹ️
+                    </span>
+                  </Tooltip>
+                </div>
                 <div className="space-y-2">
-                  {Object.entries(qualityMetrics.rejection_reasons || {}).map(([reason, count]) => (
+                  {Object.entries(overallAnalytics.rejection_reasons || {}).map(([reason, count]) => (
                     <div key={reason} className="flex items-center justify-between text-sm">
                       <span className="text-gray-400 capitalize">{reason.replace('_', ' ')}</span>
                       <span className="text-gray-100 font-medium">{count}</span>
@@ -218,24 +236,52 @@ const Dashboard = () => {
 
         <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-100">System Status</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-100">System Status</h3>
+              <Tooltip text="System Status - Real-time health monitoring of database connectivity, API endpoints, and processing services">
+                <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-sm">
+                  ℹ️
+                </span>
+              </Tooltip>
+            </div>
             <span className="opacity-60">🖥️</span>
           </div>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-gray-300">Database Status</span>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-300">Database Status</span>
+                <Tooltip text="Database Status - ChromaDB connection and data availability">
+                  <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                    ℹ️
+                  </span>
+                </Tooltip>
+              </div>
               <span className={getStatusColor(connectionStatus.database)}>
                 {getStatusText(connectionStatus.database)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-300">API Status</span>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-300">API Status</span>
+                <Tooltip text="API Status - Flask backend server connectivity and response health">
+                  <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                    ℹ️
+                  </span>
+                </Tooltip>
+              </div>
               <span className={getStatusColor(connectionStatus.api)}>
                 {getStatusText(connectionStatus.api)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-300">Processing</span>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-300">Processing</span>
+                <Tooltip text="Processing Status - Face recognition pipeline and analysis engine health">
+                  <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                    ℹ️
+                  </span>
+                </Tooltip>
+              </div>
               <span className={getStatusColor(connectionStatus.processing)}>
                 {getStatusText(connectionStatus.processing)}
               </span>

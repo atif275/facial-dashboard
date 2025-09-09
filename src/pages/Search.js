@@ -103,77 +103,98 @@ const Search = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {results.map((result, index) => (
-              <div key={index} className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6 hover:bg-gray-900/60 hover:border-gray-700/40 transition-all duration-300">
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`p-3 rounded-xl border ${
-                    result.type === 'session' ? 'bg-blue-500/10 border-blue-500/20' :
-                    result.type === 'person' ? 'bg-purple-500/10 border-purple-500/20' :
-                    'bg-green-500/10 border-green-500/20'
-                  }`}>
-                    <span className={`text-xl opacity-80 ${
-                      result.type === 'session' ? 'text-blue-300' :
-                      result.type === 'person' ? 'text-purple-300' :
-                      'text-green-300'
+              <Link
+                key={index}
+                to={result.type === 'session' 
+                  ? `/sessions/${encodeURIComponent(result.id)}` 
+                  : `/people/${encodeURIComponent(result.id)}`}
+                className="block"
+              >
+                <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6 hover:bg-gray-900/60 hover:border-gray-700/40 transition-all duration-300 group cursor-pointer">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`p-3 rounded-xl border transition-colors ${
+                      result.type === 'session' 
+                        ? 'bg-blue-500/10 border-blue-500/20 group-hover:bg-blue-500/20' 
+                        : result.type === 'person' 
+                        ? 'bg-purple-500/10 border-purple-500/20 group-hover:bg-purple-500/20' 
+                        : 'bg-green-500/10 border-green-500/20 group-hover:bg-green-500/20'
                     }`}>
-                      {result.type === 'session' ? '📹' : result.type === 'person' ? '👤' : '🎯'}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-gray-400 capitalize">{result.type}</div>
-                    <div className="text-sm font-semibold text-gray-100">
-                      {result.score ? `${Math.round(result.score * 100)}%` : 'N/A'}
+                      <span className={`text-xl opacity-80 ${
+                        result.type === 'session' ? 'text-blue-300' :
+                        result.type === 'person' ? 'text-purple-300' :
+                        'text-green-300'
+                      }`}>
+                        {result.type === 'session' ? '📹' : result.type === 'person' ? '👤' : '🎯'}
+                      </span>
                     </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-400 capitalize">{result.type}</div>
+                      <div className="text-sm font-semibold text-gray-100">
+                        {result.score ? `${Math.round(result.score * 100)}%` : 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <h4 className={`text-lg font-semibold mb-2 transition-colors ${
+                    result.type === 'session' 
+                      ? 'text-gray-100 group-hover:text-blue-300' 
+                      : 'text-gray-100 group-hover:text-purple-300'
+                  }`}>
+                    {result.name || result.id || 'Unknown'}
+                  </h4>
+
+                  <div className="space-y-2 text-sm text-gray-400">
+                    {result.timestamp && (
+                      <div className="flex items-center gap-2">
+                        <span className="opacity-60">🕐</span>
+                        <span>{formatTimestamp(result.timestamp)}</span>
+                      </div>
+                    )}
+                    
+                    {result.face_count !== undefined && result.face_count > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="opacity-60">👥</span>
+                        <span>{result.face_count} faces</span>
+                      </div>
+                    )}
+                    
+                    {result.session_count !== undefined && result.session_count > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="opacity-60">📹</span>
+                        <span>{result.session_count} sessions</span>
+                      </div>
+                    )}
+                    
+                    {result.quality_score !== undefined && result.quality_score > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="opacity-60">📊</span>
+                        <span>Quality: {result.quality_score}%</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {result.metadata && Object.keys(result.metadata).length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-700/30">
+                      <div className="text-xs text-gray-400 mb-2">Additional Info:</div>
+                      <div className="space-y-1 text-xs text-gray-500">
+                        {Object.entries(result.metadata).slice(0, 3).map(([key, value]) => (
+                          <div key={key} className="flex justify-between">
+                            <span className="capitalize">{key.replace('_', ' ')}:</span>
+                            <span>{String(value).slice(0, 20)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`flex items-center justify-end mt-4 opacity-60 group-hover:opacity-100 transition-all duration-200 ${
+                    result.type === 'session' ? 'text-blue-300' : 'text-purple-300'
+                  }`}>
+                    <span className="text-sm mr-2">View details</span>
+                    <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
                   </div>
                 </div>
-
-                <h4 className="text-lg font-semibold text-gray-100 mb-2">
-                  {result.name || result.id || 'Unknown'}
-                </h4>
-
-                <div className="space-y-2 text-sm text-gray-400">
-                  {result.timestamp && (
-                    <div className="flex items-center gap-2">
-                      <span className="opacity-60">🕐</span>
-                      <span>{formatTimestamp(result.timestamp)}</span>
-                    </div>
-                  )}
-                  
-                  {result.face_count && (
-                    <div className="flex items-center gap-2">
-                      <span className="opacity-60">👥</span>
-                      <span>{result.face_count} faces</span>
-                    </div>
-                  )}
-                  
-                  {result.session_count && (
-                    <div className="flex items-center gap-2">
-                      <span className="opacity-60">📹</span>
-                      <span>{result.session_count} sessions</span>
-                    </div>
-                  )}
-                  
-                  {result.quality_score && (
-                    <div className="flex items-center gap-2">
-                      <span className="opacity-60">📊</span>
-                      <span>Quality: {result.quality_score}%</span>
-                    </div>
-                  )}
-                </div>
-
-                {result.metadata && Object.keys(result.metadata).length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-700/30">
-                    <div className="text-xs text-gray-400 mb-2">Additional Info:</div>
-                    <div className="space-y-1 text-xs text-gray-500">
-                      {Object.entries(result.metadata).slice(0, 3).map(([key, value]) => (
-                        <div key={key} className="flex justify-between">
-                          <span className="capitalize">{key.replace('_', ' ')}:</span>
-                          <span>{String(value).slice(0, 20)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              </Link>
             ))}
           </div>
         </div>

@@ -1,4 +1,6 @@
-const MetricCard = ({ title, value, icon, color, change, changeType }) => {
+import Tooltip from './Tooltip';
+
+const MetricCard = ({ title, value, icon, color, change, changeType, tooltip }) => {
   // Apple-inspired subtle color palette
   const colorClasses = {
     blue: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
@@ -12,7 +14,16 @@ const MetricCard = ({ title, value, icon, color, change, changeType }) => {
     <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800/30 rounded-2xl shadow-lg p-6 hover:bg-gray-900/60 hover:border-gray-700/40 transition-all duration-300">
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <p className="text-sm text-gray-400 font-medium">{title}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-gray-400 font-medium">{title}</p>
+            {tooltip && (
+              <Tooltip text={tooltip}>
+                <span className="text-gray-500 hover:text-gray-300 transition-colors cursor-help text-xs">
+                  ℹ️
+                </span>
+              </Tooltip>
+            )}
+          </div>
           <p className="text-3xl font-bold text-gray-100">{value.toLocaleString()}</p>
           {change && (
             <div className={`text-xs font-medium mt-1 flex items-center gap-1 ${changeType === 'positive' ? 'text-green-300' : 'text-red-300'}`}>

@@ -221,36 +221,64 @@ export const StoreProvider = ({ children }) => {
 
   // API functions
   const getSystemStats = async () => {
+    // Legacy endpoint - still works but returns from overall_analytics
     return makeApiCall('/system/stats');
   };
 
+  const getOverallAnalytics = async () => {
+    // New optimized endpoint for dashboard
+    return makeApiCall('/overall_analytics');
+  };
+
   const getSessions = async (limit = 10, offset = 0) => {
+    // Optimized: Returns from session_details collection
     return makeApiCall(`/sessions?limit=${limit}&offset=${offset}`);
   };
 
   const getSessionDetails = async (sessionName) => {
+    // Optimized: Returns from session_details collection
     return makeApiCall(`/sessions/${encodeURIComponent(sessionName)}`);
   };
 
   const getPeople = async (limit = 10, offset = 0) => {
+    // Optimized: Returns from person_details collection
     return makeApiCall(`/persons?limit=${limit}&offset=${offset}`);
   };
 
   const getPersonDetails = async (personId) => {
+    // Optimized: Returns from person_details collection
     return makeApiCall(`/persons/${encodeURIComponent(personId)}`);
   };
 
   const getQualityMetrics = async () => {
-    return makeApiCall('/quality/metrics');
+    // Use overall_analytics for quality metrics
+    try {
+      const response = await makeApiCall('/overall_analytics');
+      return {
+        success: true,
+        quality_metrics: {
+          quality_pass_rate_percent: response.overall_analytics.quality_pass_rate,
+          detection_rate_percent: response.overall_analytics.detection_rate,
+          rejection_reasons: response.overall_analytics.rejection_reasons
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching quality metrics:', error);
+      throw error;
+    }
   };
 
   const getDailyMetrics = async () => {
+    // Legacy endpoint - still works but returns from business_analytics
     return makeApiCall('/daily/metrics');
   };
 
-  const getBusinessAnalytics = async () => {
+  const getBusinessAnalytics = async (date = null) => {
+    // Optimized: Returns from business_analytics collection
+    // If date is provided, fetch data for specific date
     try {
-      const response = await makeApiCall('/business_analytics');
+      const endpoint = date ? `/business_analytics?date=${date}` : '/business_analytics';
+      const response = await makeApiCall(endpoint);
       console.log('Business analytics:', response);
       return response;
     } catch (error) {
@@ -260,10 +288,82 @@ export const StoreProvider = ({ children }) => {
   };
 
   const searchData = async (query, searchType) => {
-    return makeApiCall('/search', {
-      method: 'POST',
-      body: JSON.stringify({ query, type: searchType }),
-    });
+    try {
+      console.log(`🔍 Searching for "${query}" in type: ${searchType}`);
+      const results = [];
+
+      // If searching all or sessions, try direct session lookup
+      if (searchType === 'all' || searchType === 'sessions') {
+        try {
+          console.log(`📹 Trying direct session lookup for: ${query}`);
+          const sessionResponse = await getSessionDetails(query);
+          
+          if (sessionResponse && sessionResponse.session) {
+            const session = sessionResponse.session;
+            const sessionResult = {
+              type: 'session',
+              id: session.session_name,
+              name: session.session_name,
+              timestamp: session.session_info?.timestamp,
+              face_count: session.combined_metrics?.faces_detected || 0,
+              quality_score: session.combined_metrics?.quality_passed && session.combined_metrics?.faces_detected 
+                ? Math.round((session.combined_metrics.quality_passed / session.combined_metrics.faces_detected) * 100)
+                : 0,
+              score: 1.0, // Exact match
+              metadata: {
+                total_frames: session.combined_metrics?.total_frames_processed || 0,
+                processing_time: session.session_info?.processing_time || 0
+              }
+            };
+            
+            results.push(sessionResult);
+            console.log(`✅ Found exact session match: ${session.session_name}`);
+          }
+        } catch (error) {
+          console.log(`❌ No exact session match found for: ${query}`);
+          // If direct lookup fails, we could fall back to partial matching if needed
+        }
+      }
+
+      // If searching all or people, try direct person lookup
+      if (searchType === 'all' || searchType === 'people') {
+        try {
+          console.log(`👤 Trying direct person lookup for: ${query}`);
+          const personResponse = await getPersonDetails(query);
+          
+          if (personResponse && personResponse.person) {
+            const person = personResponse.person;
+            const personResult = {
+              type: 'person',
+              id: person.person_id,
+              name: person.person_id,
+              timestamp: person.last_seen,
+              face_count: person.total_faces || 0,
+              session_count: person.sessions?.length || person.total_visits || 0,
+              score: 1.0, // Exact match
+              metadata: {
+                first_seen: person.first_seen,
+                age: person.age || 'Unknown',
+                gender: person.gender === 0 ? 'Female' : person.gender === 1 ? 'Male' : 'Unknown'
+              }
+            };
+            
+            results.push(personResult);
+            console.log(`✅ Found exact person match: ${person.person_id}`);
+          }
+        } catch (error) {
+          console.log(`❌ No exact person match found for: ${query}`);
+          // If direct lookup fails, we could fall back to partial matching if needed
+        }
+      }
+
+      console.log(`🔍 Search complete: ${results.length} total results`);
+      return { results, success: true };
+      
+    } catch (error) {
+      console.error('Error in searchData:', error);
+      return { results: [], success: false, error: error.message };
+    }
   };
 
   const value = {
@@ -275,6 +375,7 @@ export const StoreProvider = ({ children }) => {
     switchStore,
     checkHealth,
     getSystemStats,
+    getOverallAnalytics,
     getSessions,
     getSessionDetails,
     getPeople,

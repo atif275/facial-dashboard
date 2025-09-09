@@ -64,34 +64,44 @@ const RecentVisitors = () => {
       ) : (
         <div className="space-y-3">
           {visitors.map((visitor, index) => (
-            <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-gray-800/20 border border-gray-700/20 hover:bg-gray-800/30 hover:border-gray-600/30 transition-all duration-200">
-              <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                <span className="text-purple-300 text-lg opacity-80">👤</span>
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-semibold text-gray-100 truncate">
-                  {visitor.person_id || 'Unknown'}
-                </h4>
-                <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                  <div className="flex items-center gap-1">
-                    <span className="opacity-60">📅</span>
-                    <span>{formatLastSeen(visitor.last_seen)}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="opacity-60">📹</span>
-                    <span>{visitor.session_count || 0} sessions</span>
+            <Link
+              key={index}
+              to={`/people/${encodeURIComponent(visitor.person_id)}`}
+              className="block"
+            >
+              <div className="flex items-center gap-3 px-3 py-4 rounded-xl bg-gray-800/20 border border-gray-700/20 hover:bg-gray-800/40 hover:border-gray-600/30 transition-all duration-200 group cursor-pointer">
+                <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 group-hover:bg-purple-500/20 transition-colors">
+                  <span className="text-purple-300 text-lg opacity-80">👤</span>
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-semibold text-gray-100 truncate group-hover:text-purple-300 transition-colors">
+                    {visitor.person_id || 'Unknown'}
+                  </h4>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                    <div className="flex items-center gap-1">
+                      <span className="opacity-60">📅</span>
+                      <span>{formatLastSeen(visitor.last_seen)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="opacity-60">📹</span>
+                      <span>{visitor.sessions?.length || visitor.total_visits || 0} sessions</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="text-right">
-                <div className="text-sm font-semibold text-gray-100">
-                  {visitor.face_count || 0}
+                <div className="text-right">
+                  <div className="text-sm font-semibold text-gray-100">
+                    {visitor.total_faces || 0}
+                  </div>
+                  <div className="text-xs text-gray-400">Total faces</div>
                 </div>
-                <div className="text-xs text-gray-400">Faces</div>
+
+                <div className="text-purple-300 opacity-60 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-200">
+                  →
+                </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
